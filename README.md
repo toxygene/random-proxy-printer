@@ -31,6 +31,4 @@ There are a few requirements of the data in the `description` and `illustration`
 
 The `description` must be in ASCII.
 
-The `illustration` must be a format supported by [Pillow](https://pillow.readthedocs.io/). If you are using the CSN-A2 thermal printer, the `illustration` must also have a width <= 384 pixels. If you are using a non-color printer, I recommend converting the image to grayscale, then quantizing the palette to 8 colors.
-
-Alternatively, if you store the `description` in UTF-8, and the `illustration` is any format supported by Python [Pillow](https://pillow.readthedocs.io/), you can use the `bin/convert-database.py` script. It will convert every `description` from UTF-8 to ASCII, and update the `illustration` to be a max. width of 384 pixels, convert it to grayscale, quantize it to 8 colors, and save it as an optimized PNG.
+TODO document format of `illustration`
