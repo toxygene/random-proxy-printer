@@ -3,8 +3,11 @@ package randomProxyPrinter
 import (
 	"context"
 	"database/sql"
+	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 )
+
+var StopRunningError = errors.New("stop running error")
 
 type RandomProxyPrinter struct {
 	logEntry              *log.Entry
@@ -42,7 +45,11 @@ func (t *RandomProxyPrinter) Run(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-t.incrementValueChannel:
+		case _, ok := <-t.incrementValueChannel:
+			if !ok {
+				return errors.New("increment value channel unexpectedly closed")
+			}
+
 			t.value++
 
 			if t.value == 14 {
@@ -58,7 +65,11 @@ func (t *RandomProxyPrinter) Run(ctx context.Context) error {
 				Trace("incremented value")
 
 			t.outputValueChannel <- t.value
-		case <-t.decrementValueChannel:
+		case _, ok := <-t.decrementValueChannel:
+			if !ok {
+				return errors.New("decrement value channel unexpectedly closed")
+			}
+
 			t.value--
 
 			if t.value == 14 {
@@ -74,7 +85,11 @@ func (t *RandomProxyPrinter) Run(ctx context.Context) error {
 				Trace("decremented value")
 
 			t.outputValueChannel <- t.value
-		case <-t.printCardChannel:
+		case _, ok := <-t.printCardChannel:
+			if !ok {
+				return errors.New("print card channel unexpectedly closed")
+			}
+
 			logEntry := t.logEntry.
 				WithField("value", t.value)
 

@@ -3,6 +3,7 @@ package randomProxyPrinter
 import (
 	"context"
 	"github.com/kenshaw/evdev"
+	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -59,7 +60,11 @@ func (t *KeyboardInput) Listen(ctx context.Context, incrementValueChannel chan<-
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case eventEnvelop := <-eventEnvelopChannel:
+		case eventEnvelop, ok := <-eventEnvelopChannel:
+			if !ok {
+				return errors.New("event envelop unexpectedly closed")
+			}
+
 			if eventEnvelop.Type == evdev.KeyEnter && eventEnvelop.Event.Value == 1 {
 				t.logEntry.
 					Trace("enter key pressed")
@@ -79,7 +84,7 @@ func (t *KeyboardInput) Listen(ctx context.Context, incrementValueChannel chan<-
 				t.logEntry.
 					Trace("escape key pressed")
 
-				return nil
+				return StopRunningError
 			}
 		}
 	}

@@ -63,31 +63,39 @@ func main() {
 	g.Add(func() error {
 		return re.Listen(ctx, incrementValueChannel, decrementValueChannel, printCardChannel)
 	}, func(err error) {
-		cancel()
+		if err != nil {
+			cancel()
+		}
 	})
 
 	g.Add(func() error {
 		return printer.Listen(ctx, outputProxyChannel)
 	}, func(err error) {
-		cancel()
+		if err != nil {
+			cancel()
+		}
 	})
 
 	g.Add(func() error {
 		return display.Listen(ctx, outputValueChannel)
 	}, func(err error) {
-		cancel()
+		if err != nil {
+			cancel()
+		}
 	})
 
 	g.Add(func() error {
 		return p.Run(ctx)
 	}, func(err error) {
-		cancel()
+		if err != nil {
+			cancel()
+		}
 	})
 
 	logger.Trace("starting run group")
 
 	err = g.Run()
-	if err != nil {
+	if err != nil && err != randomProxyPrinter.StopRunningError {
 		logger.WithError(err).
 			Error("run log group failed")
 
