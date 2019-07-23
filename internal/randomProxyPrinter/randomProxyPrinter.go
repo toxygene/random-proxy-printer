@@ -3,42 +3,46 @@ package randomProxyPrinter
 import (
 	"context"
 	"database/sql"
+	log "github.com/sirupsen/logrus"
 )
 
 type RandomProxyPrinter struct {
-	db					  *sql.DB
-	incrementValueChannel <-chan interface {}
-	decrementValueChannel <-chan interface {}
-	printButtonChannel    <-chan interface {}
-	displayChannel        chan<- int
-	printChannel          chan<- Proxy
+	logEntry              *log.Entry
+	db                    *sql.DB
+	incrementValueChannel <-chan interface{}
+	decrementValueChannel <-chan interface{}
+	printCardChannel      <-chan interface{}
+	outputValueChannel    chan<- int
+	outputProxyChannel    chan<- Proxy
 	value                 int
 }
 
-func NewRandomProxyPrinter(db *sql.DB,
-	incrementValueChannel <-chan interface {},
-	decrementValueChannel <-chan interface {},
-	printButtonChannel <-chan interface {},
-	displayChannel chan<- int,
-	printChannel chan<- Proxy) *RandomProxyPrinter {
+func NewRandomProxyPrinter(logger *log.Logger,
+	db *sql.DB,
+	incrementValueChannel <-chan interface{},
+	decrementValueChannel <-chan interface{},
+	printCardChannel <-chan interface{},
+	outputValueChannel chan<- int,
+	outputProxyChannel chan<- Proxy) *RandomProxyPrinter {
 	randomProxyPrinter := &RandomProxyPrinter{
+		logEntry:              log.NewEntry(logger),
 		db:                    db,
 		incrementValueChannel: incrementValueChannel,
 		decrementValueChannel: decrementValueChannel,
-		printButtonChannel:    printButtonChannel,
-		displayChannel:        displayChannel,
-		printChannel:          printChannel,
+		printCardChannel:      printCardChannel,
+		outputValueChannel:    outputValueChannel,
+		outputProxyChannel:    outputProxyChannel,
 	}
 
 	return randomProxyPrinter
 }
 
-func(t *RandomProxyPrinter) Run(ctx context.Context) error {
+func (t *RandomProxyPrinter) Run(ctx context.Context) error {
 	for {
 		select {
-		case <- ctx.Done():
+		case <-ctx.Done():
 			return ctx.Err()
-		case <- t.incrementValueChannel:
+		case <-t.incrementValueChannel:
 			t.value++
 
 			if t.value == 14 {
@@ -49,8 +53,12 @@ func(t *RandomProxyPrinter) Run(ctx context.Context) error {
 				t.value = 0
 			}
 
-			t.displayChannel <- t.value
-		case <- t.decrementValueChannel:
+			t.logEntry.
+				WithField("value", t.value).
+				Trace("incremented value")
+
+			t.outputValueChannel <- t.value
+		case <-t.decrementValueChannel:
 			t.value--
 
 			if t.value == 14 {
@@ -61,9 +69,17 @@ func(t *RandomProxyPrinter) Run(ctx context.Context) error {
 				t.value = 16
 			}
 
-			t.displayChannel <- t.value
+			t.logEntry.
+				WithField("value", t.value).
+				Trace("decremented value")
 
-		case <- t.printButtonChannel:
+			t.outputValueChannel <- t.value
+		case <-t.printCardChannel:
+			logEntry := t.logEntry.
+				WithField("value", t.value)
+
+			logEntry.Trace("fetching random proxy from database")
+
 			proxy := Proxy{}
 
 			row := t.db.QueryRow("SELECT name, description, illustration FROM proxies WHERE value = ? ORDER BY RANDOM() LIMIT 1", t.value)
@@ -73,10 +89,16 @@ func(t *RandomProxyPrinter) Run(ctx context.Context) error {
 				&proxy.Illustration)
 
 			if err != nil {
+				logEntry.WithError(err).
+					Error("failed to fetch random proxy from database")
+
 				return err
 			}
 
-			t.printChannel <- proxy
+			logEntry.WithField("proxy", proxy).
+				Trace("random proxy fetched from database")
+
+			t.outputProxyChannel <- proxy
 		}
 	}
 }

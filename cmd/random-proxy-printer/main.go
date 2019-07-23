@@ -6,30 +6,40 @@ import (
 	"flag"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/oklog/run"
+	log "github.com/sirupsen/logrus"
 	"github.com/toxygene/random-proxy-printer/internal/randomProxyPrinter"
 	"os"
 )
 
 func main() {
 	sqlitePathPtr := flag.String("proxies", "", "path to the SQLite proxies database")
-	keyboardPath := flag.String("keyboard", "/dev/input/event6", "path to the keyboard input")
+	keyboardPathPtr := flag.String("keyboard", "/dev/input/event6", "path to the keyboard input")
+	verbosePtr := flag.Bool("verbose", false, "verbose output")
 
 	flag.Parse()
 
 	// todo validate flags
+
+	logger := log.New()
+
+	if *verbosePtr {
+		logger.SetLevel(log.TraceLevel)
+	} else {
+		logger.SetLevel(log.InfoLevel)
+	}
 
 	db, err := sql.Open("sqlite3", *sqlitePathPtr)
 	if err != nil {
 		panic(err)
 	}
 
-	clockwiseChannel := make(chan interface{})
-	counterClockwiseChannel := make(chan interface{})
-	pushChannel := make(chan interface{})
-	printChannel := make(chan randomProxyPrinter.Proxy)
-	displayChannel := make(chan int)
+	incrementValueChannel := make(chan interface{})
+	decrementValueChannel := make(chan interface{})
+	printCardChannel := make(chan interface{})
+	outputProxyChannel := make(chan randomProxyPrinter.Proxy)
+	outputValueChannel := make(chan int)
 
-	re, err := randomProxyPrinter.NewKeyboardInput(*keyboardPath)
+	re, err := randomProxyPrinter.NewKeyboardInput(logger, *keyboardPathPtr)
 
 	if err != nil {
 		panic(err)
@@ -38,31 +48,32 @@ func main() {
 	printer := randomProxyPrinter.StdoutPrinter{}
 	display := randomProxyPrinter.StdoutDisplay{}
 
-	p := randomProxyPrinter.NewRandomProxyPrinter(db,
-		clockwiseChannel,
-		counterClockwiseChannel,
-		pushChannel,
-		displayChannel,
-		printChannel)
+	p := randomProxyPrinter.NewRandomProxyPrinter(logger,
+		db,
+		incrementValueChannel,
+		decrementValueChannel,
+		printCardChannel,
+		outputValueChannel,
+		outputProxyChannel)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
 	g := run.Group{}
 
 	g.Add(func() error {
-		return re.Listen(ctx, clockwiseChannel, counterClockwiseChannel, pushChannel)
+		return re.Listen(ctx, incrementValueChannel, decrementValueChannel, printCardChannel)
 	}, func(err error) {
 		cancel()
 	})
 
 	g.Add(func() error {
-		return printer.Listen(ctx, printChannel)
+		return printer.Listen(ctx, outputProxyChannel)
 	}, func(err error) {
 		cancel()
 	})
 
 	g.Add(func() error {
-		return display.Listen(ctx, displayChannel)
+		return display.Listen(ctx, outputValueChannel)
 	}, func(err error) {
 		cancel()
 	})
@@ -73,8 +84,13 @@ func main() {
 		cancel()
 	})
 
+	logger.Trace("starting run group")
+
 	err = g.Run()
 	if err != nil {
+		logger.WithError(err).
+			Error("run log group failed")
+
 		panic(err)
 	}
 
