@@ -59,6 +59,9 @@ func (t *KeyboardInput) Listen(ctx context.Context, incrementValueChannel chan<-
 	for {
 		select {
 		case <-ctx.Done():
+			t.logEntry.
+				Trace("context cancelled, shutting down keyboard input")
+
 			return ctx.Err()
 		case eventEnvelop, ok := <-eventEnvelopChannel:
 			if !ok {

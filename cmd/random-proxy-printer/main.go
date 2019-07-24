@@ -9,6 +9,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/toxygene/random-proxy-printer/internal/randomProxyPrinter"
 	"os"
+	"os/signal"
 )
 
 func main() {
@@ -45,8 +46,8 @@ func main() {
 		panic(err)
 	}
 
-	printer := randomProxyPrinter.StdoutPrinter{}
-	display := randomProxyPrinter.StdoutDisplay{}
+	printer := randomProxyPrinter.StdoutPrinter{Logger: logger}
+	display := randomProxyPrinter.StdoutDisplay{Logger: logger}
 
 	p := randomProxyPrinter.NewRandomProxyPrinter(logger,
 		db,
@@ -56,41 +57,71 @@ func main() {
 		outputValueChannel,
 		outputProxyChannel)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	parentCtx := context.Background()
 
 	g := run.Group{}
 
-	g.Add(func() error {
-		return re.Listen(ctx, incrementValueChannel, decrementValueChannel, printCardChannel)
-	}, func(err error) {
-		if err != nil {
-			cancel()
-		}
-	})
+	{
+		ctx, cancel := context.WithCancel(parentCtx)
 
-	g.Add(func() error {
-		return printer.Listen(ctx, outputProxyChannel)
-	}, func(err error) {
-		if err != nil {
+		g.Add(func() error {
+			return re.Listen(ctx, incrementValueChannel, decrementValueChannel, printCardChannel)
+		}, func(err error) {
 			cancel()
-		}
-	})
+		})
+	}
 
-	g.Add(func() error {
-		return display.Listen(ctx, outputValueChannel)
-	}, func(err error) {
-		if err != nil {
-			cancel()
-		}
-	})
+	{
+		ctx, cancel := context.WithCancel(parentCtx)
 
-	g.Add(func() error {
-		return p.Run(ctx)
-	}, func(err error) {
-		if err != nil {
+		g.Add(func() error {
+			return printer.Listen(ctx, outputProxyChannel)
+		}, func(err error) {
 			cancel()
-		}
-	})
+		})
+	}
+
+	{
+		ctx, cancel := context.WithCancel(parentCtx)
+
+		g.Add(func() error {
+			return display.Listen(ctx, outputValueChannel)
+		}, func(err error) {
+			cancel()
+		})
+	}
+
+	{
+		ctx, cancel := context.WithCancel(parentCtx)
+
+		g.Add(func() error {
+			return p.Run(ctx)
+		}, func(err error) {
+			cancel()
+		})
+	}
+
+	{
+		ctx, cancel := context.WithCancel(parentCtx)
+
+		g.Add(func() error {
+			osSignalChannel := make(chan os.Signal, 1)
+			signal.Notify(osSignalChannel, os.Interrupt)
+
+			for {
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				case <-osSignalChannel:
+					logger.Trace("SIGINT received")
+
+					return randomProxyPrinter.StopRunningError
+				}
+			}
+		}, func(e error) {
+			cancel()
+		})
+	}
 
 	logger.Trace("starting run group")
 

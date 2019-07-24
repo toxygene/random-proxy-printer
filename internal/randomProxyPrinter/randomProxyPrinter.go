@@ -110,7 +110,7 @@ func (t *RandomProxyPrinter) Run(ctx context.Context) error {
 				return err
 			}
 
-			logEntry.WithField("proxy", proxy).
+			logEntry.WithField("proxy_name", proxy.Name).
 				Trace("random proxy fetched from database")
 
 			t.outputProxyChannel <- proxy
