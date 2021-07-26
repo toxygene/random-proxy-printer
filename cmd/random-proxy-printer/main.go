@@ -5,28 +5,39 @@ import (
 	"database/sql"
 	"flag"
 	_ "github.com/mattn/go-sqlite3"
-	"github.com/oklog/run"
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
+	"github.com/toxygene/periphio-gpio-rotary-encoder/v2/device"
 	"github.com/toxygene/random-proxy-printer/internal/randomProxyPrinter"
+	"golang.org/x/sync/errgroup"
 	"os"
 	"os/signal"
+	"periph.io/x/periph/conn/gpio/gpioreg"
+	"periph.io/x/periph/host"
+	"time"
 )
 
 func main() {
+	rotaryEncoderButtonPin := flag.String("button", "", "GPIO name of button for the rotary encoder")
+	help := flag.Bool("help", false, "print help page")
+	rotaryEncoderAPin := flag.String("pinA", "", "GPIO name of pin A for the rotary encoder")
+	rotaryEncoderBPin := flag.String("pinB", "", "GPIO name of pin B for the rotary encoder")
 	sqlitePathPtr := flag.String("proxies", "", "path to the SQLite proxies database")
-	keyboardPathPtr := flag.String("keyboard", "/dev/input/event6", "path to the keyboard input")
+	rotaryEncoderTimeout := flag.Int("timeout", 2, "timeout (in seconds) for reading a pin")
 	verbosePtr := flag.Bool("verbose", false, "verbose output")
 
 	flag.Parse()
 
-	// todo validate flags
+	if *help || *rotaryEncoderButtonPin == "" || *rotaryEncoderAPin == "" || *rotaryEncoderBPin == "" || *sqlitePathPtr == "" {
+		flag.Usage()
+		os.Exit(0)
+	}
 
-	logger := log.New()
+	logger := logrus.New()
 
 	if *verbosePtr {
-		logger.SetLevel(log.TraceLevel)
+		logger.SetLevel(logrus.TraceLevel)
 	} else {
-		logger.SetLevel(log.InfoLevel)
+		logger.SetLevel(logrus.InfoLevel)
 	}
 
 	db, err := sql.Open("sqlite3", *sqlitePathPtr)
@@ -34,99 +45,69 @@ func main() {
 		panic(err)
 	}
 
-	incrementValueChannel := make(chan interface{})
-	decrementValueChannel := make(chan interface{})
-	printCardChannel := make(chan interface{})
-	outputProxyChannel := make(chan randomProxyPrinter.Proxy)
-	outputValueChannel := make(chan int)
+	display := &randomProxyPrinter.StdoutDisplay{Logger: logger}
 
-	re, err := randomProxyPrinter.NewKeyboardInput(logger, *keyboardPathPtr)
-
-	if err != nil {
+	if _, err := host.Init(); err != nil {
 		panic(err)
 	}
 
-	printer := randomProxyPrinter.StdoutPrinter{Logger: logger}
-	display := randomProxyPrinter.StdoutDisplay{Logger: logger}
-
-	p := randomProxyPrinter.NewRandomProxyPrinter(logger,
-		db,
-		incrementValueChannel,
-		decrementValueChannel,
-		printCardChannel,
-		outputValueChannel,
-		outputProxyChannel)
-
-	parentCtx := context.Background()
-
-	g := run.Group{}
-
-	{
-		ctx, cancel := context.WithCancel(parentCtx)
-
-		g.Add(func() error {
-			return re.Listen(ctx, incrementValueChannel, decrementValueChannel, printCardChannel)
-		}, func(err error) {
-			cancel()
-		})
+	aPin := gpioreg.ByName(*rotaryEncoderAPin)
+	if aPin == nil {
+		logger.WithField("pin_a", *rotaryEncoderAPin).Error("no gpio pin found for pin a")
+		os.Exit(1)
 	}
 
-	{
-		ctx, cancel := context.WithCancel(parentCtx)
-
-		g.Add(func() error {
-			return printer.Listen(ctx, outputProxyChannel)
-		}, func(err error) {
-			cancel()
-		})
+	bPin := gpioreg.ByName(*rotaryEncoderBPin)
+	if bPin == nil {
+		logger.WithField("pin_b", *rotaryEncoderBPin).Error("no gpio pin found for pin b")
+		os.Exit(1)
 	}
 
-	{
-		ctx, cancel := context.WithCancel(parentCtx)
-
-		g.Add(func() error {
-			return display.Listen(ctx, outputValueChannel)
-		}, func(err error) {
-			cancel()
-		})
+	buttonPin := gpioreg.ByName(*rotaryEncoderButtonPin)
+	if buttonPin == nil {
+		logger.WithField("button", *rotaryEncoderButtonPin).Error("no gpio bin found for button")
+		os.Exit(1)
 	}
 
-	{
-		ctx, cancel := context.WithCancel(parentCtx)
+	rotaryEncoder := device.NewRotaryEncoder(aPin, bPin, buttonPin, (time.Duration(*rotaryEncoderTimeout))*time.Second, logrus.NewEntry(logger))
 
-		g.Add(func() error {
-			return p.Run(ctx)
-		}, func(err error) {
-			cancel()
-		})
+	input := &randomProxyPrinter.RotaryEncoderInput{
+		RotaryEncoder: rotaryEncoder,
 	}
 
-	{
-		ctx, cancel := context.WithCancel(parentCtx)
+	printer := &randomProxyPrinter.StdoutPrinter{Logger: logger}
 
-		g.Add(func() error {
-			osSignalChannel := make(chan os.Signal, 1)
-			signal.Notify(osSignalChannel, os.Interrupt)
+	p := randomProxyPrinter.NewRandomProxyPrinter(logger, db, display, input, printer)
 
-			for {
-				select {
-				case <-ctx.Done():
-					return ctx.Err()
-				case <-osSignalChannel:
-					logger.Trace("SIGINT received")
+	ctx, cancel := context.WithCancel(context.Background())
 
-					return randomProxyPrinter.StopRunningError
-				}
+	g := new(errgroup.Group)
+
+	g.Go(func() error {
+		return p.Run(ctx)
+	})
+
+	g.Go(func() error {
+		osSignalChannel := make(chan os.Signal, 1)
+		signal.Notify(osSignalChannel, os.Interrupt)
+
+		for {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-osSignalChannel:
+				logger.Trace("SIGINT received")
+
+				cancel()
+
+				return nil
 			}
-		}, func(e error) {
-			cancel()
-		})
-	}
+		}
+	})
 
 	logger.Trace("starting run group")
 
-	err = g.Run()
-	if err != nil && err != randomProxyPrinter.StopRunningError {
+	if err := g.Wait(); err != nil {
 		logger.WithError(err).
 			Error("run log group failed")
 
