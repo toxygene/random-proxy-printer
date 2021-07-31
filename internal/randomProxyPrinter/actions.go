@@ -4,6 +4,6 @@ type Action string
 
 const (
 	IncrementValue   Action = "increment"
-	DecrementValue          = "decrement"
-	PrintRandomProxy        = "print"
+	DecrementValue   Action = "decrement"
+	PrintRandomProxy Action = "print"
 )
