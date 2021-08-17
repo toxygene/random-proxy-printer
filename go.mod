@@ -11,7 +11,7 @@ require (
 	github.com/sirupsen/logrus v1.8.1
 	github.com/stretchr/testify v1.7.0
 	github.com/toxygene/periphio-gpio-button v1.0.2
-	github.com/toxygene/periphio-gpio-rotary-encoder/v2 v2.0.8
+	github.com/toxygene/periphio-gpio-rotary-encoder/v2 v2.0.12
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	periph.io/x/periph v3.6.8+incompatible
 )

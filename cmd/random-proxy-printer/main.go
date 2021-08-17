@@ -24,8 +24,8 @@ func main() {
 	rotaryEncoderAPinName := flag.String("pinA", "", "GPIO name of pin A for the rotary encoder")
 	rotaryEncoderBPinName := flag.String("pinB", "", "GPIO name of pin B for the rotary encoder")
 	sqlitePathPtr := flag.String("proxies", "", "path to the SQLite proxies database")
-	rotaryEncoderTimeout := flag.Int("timeout", 2, "timeout (in seconds) for reading a pin")
-	verbosePtr := flag.Bool("verbose", false, "verbose output")
+	waitTimeout := flag.Int("timeout", 2, "timeout (in seconds) for reading a pin")
+	logging := flag.String("logging", "", "logging level")
 
 	flag.Parse()
 
@@ -36,10 +36,13 @@ func main() {
 
 	logger := logrus.New()
 
-	if *verbosePtr {
-		logger.SetLevel(logrus.TraceLevel)
-	} else {
-		logger.SetLevel(logrus.InfoLevel)
+	if *logging != "" {
+		logLevel, err := logrus.ParseLevel(*logging)
+		if err != nil {
+			panic(err)
+		}
+
+		logger.SetLevel(logLevel)
 	}
 
 	db, err := sql.Open("sqlite3", *sqlitePathPtr)
@@ -47,10 +50,20 @@ func main() {
 		panic(err)
 	}
 
-	display := &randomProxyPrinter.StdoutDisplay{Logger: logger}
-
 	if _, err := host.Init(); err != nil {
 		panic(err)
+	}
+
+	timeout := (time.Duration(*waitTimeout)) * time.Second
+
+	buttonPin := gpioreg.ByName(*buttonPinName)
+	if buttonPin == nil {
+		logger.WithField("button", *buttonPinName).Error("no gpio bin found for button")
+		os.Exit(1)
+	}
+
+	if err := buttonPin.In(gpio.PullUp, gpio.BothEdges); err != nil {
+		logger.WithField("button", buttonPin).WithError(err).Error("could not setup button for input")
 	}
 
 	aPin := gpioreg.ByName(*rotaryEncoderAPinName)
@@ -59,8 +72,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := aPin.In(gpio.PullNoChange, gpio.BothEdges); err != nil {
-		logger.WithField("pin_a", aPin).Error("could not setup pin a for input")
+	if err := aPin.In(gpio.PullUp, gpio.BothEdges); err != nil {
+		logger.WithField("pin_a", aPin).WithError(err).Error("could not setup pin a for input")
 		os.Exit(1)
 	}
 
@@ -70,29 +83,22 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := bPin.In(gpio.PullNoChange, gpio.BothEdges); err != nil {
-		logger.WithField("pin_b", bPin).Error("could not setup pin b for input")
+	if err := bPin.In(gpio.PullUp, gpio.BothEdges); err != nil {
+		logger.WithField("pin_b", bPin).WithError(err).Error("could not setup pin b for input")
 		os.Exit(1)
 	}
 
-	rotaryEncoder := rotaryEncoderDevice.NewRotaryEncoder(aPin, bPin, (time.Duration(*rotaryEncoderTimeout))*time.Second, logrus.NewEntry(logger))
-
-	buttonPin := gpioreg.ByName(*buttonPinName)
-	if buttonPin == nil {
-		logger.WithField("button", *buttonPinName).Error("no gpio bin found for button")
-		os.Exit(1)
-	}
-
-	button := buttonDevice.NewButton(buttonPin, (time.Duration(*rotaryEncoderTimeout))*time.Second)
-
-	input := &randomProxyPrinter.GpioInput{
-		RotaryEncoder: rotaryEncoder,
-		Button:        button,
-	}
-
-	printer := &randomProxyPrinter.StdoutPrinter{Logger: logger}
-
-	p := randomProxyPrinter.NewRandomProxyPrinter(logger, db, display, input, printer)
+	p := randomProxyPrinter.NewRandomProxyPrinter(
+		db,
+		&randomProxyPrinter.StdoutDisplay{Logger: logger},
+		randomProxyPrinter.NewGpioInput(
+			buttonDevice.NewButton(buttonPin, timeout),
+			rotaryEncoderDevice.NewRotaryEncoder(aPin, bPin, timeout, logrus.NewEntry(logger)),
+			logrus.NewEntry(logger),
+		),
+		&randomProxyPrinter.StdoutPrinter{Logger: logger},
+		logrus.NewEntry(logger),
+	)
 
 	ctx, cancel := context.WithCancel(context.Background())
 

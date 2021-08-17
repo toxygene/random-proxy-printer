@@ -9,24 +9,24 @@ import (
 )
 
 type RandomProxyPrinter struct {
-	logEntry  *logrus.Entry
 	db        *sql.DB
 	displayer Displayer
 	inputter  Inputter
+	logger    *logrus.Entry
 	printer   Printer
 	value     int
 }
 
-func NewRandomProxyPrinter(logger *logrus.Logger,
-	db *sql.DB,
+func NewRandomProxyPrinter(db *sql.DB,
 	displayer Displayer,
 	inputter Inputter,
-	printer Printer) *RandomProxyPrinter {
+	printer Printer,
+	logger *logrus.Entry) *RandomProxyPrinter {
 	randomProxyPrinter := &RandomProxyPrinter{
-		logEntry:  logrus.NewEntry(logger),
 		db:        db,
 		displayer: displayer,
 		inputter:  inputter,
+		logger:    logger,
 		printer:   printer,
 	}
 
@@ -47,13 +47,7 @@ func (t *RandomProxyPrinter) Run(parentCtx context.Context) error {
 	})
 
 	g.Go(func() error {
-		for {
-			action, ok := <-actions
-
-			if !ok {
-				return nil
-			}
-
+		for action := range actions {
 			if action == IncrementValue {
 				t.value++
 
@@ -65,9 +59,11 @@ func (t *RandomProxyPrinter) Run(parentCtx context.Context) error {
 					t.value = 0
 				}
 
-				t.logEntry.
+				t.logger.
 					WithField("value", t.value).
 					Trace("incremented value")
+
+				println(t.value)
 			} else if action == DecrementValue {
 				t.value--
 
@@ -79,11 +75,13 @@ func (t *RandomProxyPrinter) Run(parentCtx context.Context) error {
 					t.value = 16
 				}
 
-				t.logEntry.
+				t.logger.
 					WithField("value", t.value).
 					Trace("decremented value")
+
+				println(t.value)
 			} else if action == PrintRandomProxy {
-				logEntry := t.logEntry.
+				logEntry := t.logger.
 					WithField("value", t.value)
 
 				logEntry.Trace("fetching random proxy from database")
@@ -114,10 +112,12 @@ func (t *RandomProxyPrinter) Run(parentCtx context.Context) error {
 				}
 			}
 		}
+
+		return nil
 	})
 
 	if err := g.Wait(); err != nil {
-		t.logEntry.
+		t.logger.
 			WithError(err).
 			Error("run proxy printer failed")
 

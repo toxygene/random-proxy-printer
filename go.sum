@@ -20,8 +20,8 @@ github.com/stretchr/testify v1.7.0 h1:nwc3DEeHmmLAfoZucVR881uASk0Mfjw8xYJ99tb5Cc
 github.com/stretchr/testify v1.7.0/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/h/Wwjteg=
 github.com/toxygene/periphio-gpio-button v1.0.2 h1:2W/Uok83WQ8KZgG6xMt9pPiEdnvhs3yRMS6SDy5gn/s=
 github.com/toxygene/periphio-gpio-button v1.0.2/go.mod h1:kHEzkxeR7deBxEjGNVCOMYuwh0SO+6A0kTBTUmIcJmo=
-github.com/toxygene/periphio-gpio-rotary-encoder/v2 v2.0.8 h1:gHwA9185/BnecGv6bPUlyD01UbdEXB7FVRwP1J8B1d0=
-github.com/toxygene/periphio-gpio-rotary-encoder/v2 v2.0.8/go.mod h1:z7lr2+4Ayn3pSOo5ufg+50DOVQUKKwQNcebTnefc4IU=
+github.com/toxygene/periphio-gpio-rotary-encoder/v2 v2.0.12 h1:0q5PP7Bg5wiqQz7oztSjG8lsvQIQzQvmGRtckboS7V4=
+github.com/toxygene/periphio-gpio-rotary-encoder/v2 v2.0.12/go.mod h1:z7lr2+4Ayn3pSOo5ufg+50DOVQUKKwQNcebTnefc4IU=
 golang.org/x/sync v0.0.0-20210220032951-036812b2e83c h1:5KslGYwFpkhGh+Q16bwMP3cOontH8FOep7tGV86Y7SQ=
 golang.org/x/sync v0.0.0-20210220032951-036812b2e83c/go.mod h1:RxMgew5VJxzue5/jJTE5uejpjVlOe/izrB70Jof72aM=
 golang.org/x/sys v0.0.0-20191026070338-33540a1f6037 h1:YyJpGZS1sBuBCzLAR1VEpK193GlqGZbnPFnPV/5Rsb4=
