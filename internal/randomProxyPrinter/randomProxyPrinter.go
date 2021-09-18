@@ -1,128 +1,128 @@
 package randomProxyPrinter
 
 import (
-    "context"
-    "database/sql"
-    "fmt"
-    "github.com/sirupsen/logrus"
-    "golang.org/x/sync/errgroup"
+	"context"
+	"database/sql"
+	"fmt"
+	"github.com/sirupsen/logrus"
+	"golang.org/x/sync/errgroup"
 )
 
 type RandomProxyPrinter struct {
-    db        *sql.DB
-    displayer Displayer
-    inputter  Inputter
-    logger    *logrus.Entry
-    printer   Printer
-    value     int
+	db        *sql.DB
+	displayer Displayer
+	inputter  Inputter
+	logger    *logrus.Entry
+	printer   Printer
+	value     int
 }
 
 func NewRandomProxyPrinter(db *sql.DB,
-    displayer Displayer,
-    inputter Inputter,
-    printer Printer,
-    logger *logrus.Entry) *RandomProxyPrinter {
-    randomProxyPrinter := &RandomProxyPrinter{
-        db:        db,
-        displayer: displayer,
-        inputter:  inputter,
-        logger:    logger,
-        printer:   printer,
-    }
+	displayer Displayer,
+	inputter Inputter,
+	printer Printer,
+	logger *logrus.Entry) *RandomProxyPrinter {
+	randomProxyPrinter := &RandomProxyPrinter{
+		db:        db,
+		displayer: displayer,
+		inputter:  inputter,
+		logger:    logger,
+		printer:   printer,
+	}
 
-    return randomProxyPrinter
+	return randomProxyPrinter
 }
 
 func (t *RandomProxyPrinter) Run(parentCtx context.Context) error {
-    ctx, cancel := context.WithCancel(parentCtx)
+	ctx, cancel := context.WithCancel(parentCtx)
 
-    g := new(errgroup.Group)
+	g := new(errgroup.Group)
 
-    actions := make(chan Action)
+	actions := make(chan Action)
 
-    g.Go(func() error {
-        defer close(actions)
+	g.Go(func() error {
+		defer close(actions)
 
-        return t.inputter.Run(ctx, actions)
-    })
+		return t.inputter.Run(ctx, actions)
+	})
 
-    g.Go(func() error {
-        for action := range actions {
-            if action == IncrementValue {
-                t.value++
+	g.Go(func() error {
+		for action := range actions {
+			if action == IncrementValue {
+				t.value++
 
-                if t.value == 14 {
-                    t.value++
-                }
+				if t.value == 14 {
+					t.value++
+				}
 
-                if t.value > 16 {
-                    t.value = 0
-                }
+				if t.value > 16 {
+					t.value = 0
+				}
 
-                t.logger.
-                    WithField("value", t.value).
-                    Trace("incremented value")
+				t.logger.
+					WithField("value", t.value).
+					Trace("incremented value")
 
-                t.displayer.Display(t.value)
-            } else if action == DecrementValue {
-                t.value--
+				t.displayer.Display(t.value)
+			} else if action == DecrementValue {
+				t.value--
 
-                if t.value == 14 {
-                    t.value--
-                }
+				if t.value == 14 {
+					t.value--
+				}
 
-                if t.value < 0 {
-                    t.value = 16
-                }
+				if t.value < 0 {
+					t.value = 16
+				}
 
-                t.logger.
-                    WithField("value", t.value).
-                    Trace("decremented value")
+				t.logger.
+					WithField("value", t.value).
+					Trace("decremented value")
 
-                t.displayer.Display(t.value)
-            } else if action == PrintRandomProxy {
-                logEntry := t.logger.
-                    WithField("value", t.value)
+				t.displayer.Display(t.value)
+			} else if action == PrintRandomProxy {
+				logEntry := t.logger.
+					WithField("value", t.value)
 
-                logEntry.Trace("fetching random proxy from database")
+				logEntry.Trace("fetching random proxy from database")
 
-                proxy := Proxy{}
+				proxy := Proxy{}
 
-                row := t.db.QueryRow("SELECT name, description, illustration FROM proxies WHERE value = ? ORDER BY RANDOM() LIMIT 1", t.value)
+				row := t.db.QueryRow("SELECT name, description, illustration FROM proxies WHERE value = ? ORDER BY RANDOM() LIMIT 1", t.value)
 
-                if err := row.Scan(&proxy.Name, &proxy.Description, &proxy.Illustration); err != nil {
-                    logEntry.WithError(err).
-                        Error("failed to fetch random proxy from database")
+				if err := row.Scan(&proxy.Name, &proxy.Description, &proxy.Illustration); err != nil {
+					logEntry.WithError(err).
+						Error("failed to fetch random proxy from database")
 
-                    cancel()
+					cancel()
 
-                    return err
-                }
+					return err
+				}
 
-                logEntry.WithField("proxy_name", proxy.Name).
-                    Trace("random proxy fetched from database")
+				logEntry.WithField("proxy_name", proxy.Name).
+					Trace("random proxy fetched from database")
 
-                if err := t.printer.Print(proxy); err != nil {
-                    logEntry.WithError(err).
-                        Error("failed to print random proxy")
+				if err := t.printer.Print(proxy); err != nil {
+					logEntry.WithError(err).
+						Error("failed to print random proxy")
 
-                    cancel()
+					cancel()
 
-                    return err
-                }
-            }
-        }
+					return err
+				}
+			}
+		}
 
-        return nil
-    })
+		return nil
+	})
 
-    if err := g.Wait(); err != nil {
-        t.logger.
-            WithError(err).
-            Error("run proxy printer failed")
+	if err := g.Wait(); err != nil {
+		t.logger.
+			WithError(err).
+			Error("run proxy printer failed")
 
-        return fmt.Errorf("run proxy printer groups: %w", err)
-    }
+		return fmt.Errorf("run proxy printer groups: %w", err)
+	}
 
-    return nil
+	return nil
 }
