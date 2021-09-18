@@ -9,8 +9,8 @@ type StdoutDisplay struct {
 	Logger *logrus.Logger
 }
 
-func (t *StdoutDisplay) Display(proxy Proxy) error {
-	spew.Dump(proxy)
+func (t *StdoutDisplay) Display(number int) error {
+	spew.Dump(number)
 
 	return nil
 }

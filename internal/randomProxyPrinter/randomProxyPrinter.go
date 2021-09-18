@@ -63,7 +63,7 @@ func (t *RandomProxyPrinter) Run(parentCtx context.Context) error {
 					WithField("value", t.value).
 					Trace("incremented value")
 
-				println(t.value)
+                t.displayer.Display(t.value)
 			} else if action == DecrementValue {
 				t.value--
 
@@ -79,7 +79,7 @@ func (t *RandomProxyPrinter) Run(parentCtx context.Context) error {
 					WithField("value", t.value).
 					Trace("decremented value")
 
-				println(t.value)
+                t.displayer.Display(t.value)
 			} else if action == PrintRandomProxy {
 				logEntry := t.logger.
 					WithField("value", t.value)

@@ -14,6 +14,8 @@ import (
 	"os/signal"
 	"periph.io/x/periph/conn/gpio"
 	"periph.io/x/periph/conn/gpio/gpioreg"
+    "periph.io/x/periph/conn/i2c"
+    "periph.io/x/periph/conn/i2c/i2creg"
 	"periph.io/x/periph/host"
 	"time"
 )
@@ -21,6 +23,7 @@ import (
 func main() {
 	buttonPinName := flag.String("button", "", "GPIO name of button for the rotary encoder")
 	help := flag.Bool("help", false, "print help page")
+    ht16k33Address := flag.Int("ht16k33", 0, "Address of the HT16K33 on the I2C bus")
 	rotaryEncoderAPinName := flag.String("pinA", "", "GPIO name of pin A for the rotary encoder")
 	rotaryEncoderBPinName := flag.String("pinB", "", "GPIO name of pin B for the rotary encoder")
 	sqlitePathPtr := flag.String("proxies", "", "path to the SQLite proxies database")
@@ -29,7 +32,7 @@ func main() {
 
 	flag.Parse()
 
-	if *help || *buttonPinName == "" || *rotaryEncoderAPinName == "" || *rotaryEncoderBPinName == "" || *sqlitePathPtr == "" {
+	if *help || *buttonPinName == "" || *rotaryEncoderAPinName == "" || *rotaryEncoderBPinName == "" || *sqlitePathPtr == "" || *ht16k33Address == 0 {
 		flag.Usage()
 		os.Exit(0)
 	}
@@ -53,6 +56,21 @@ func main() {
 	if _, err := host.Init(); err != nil {
 		panic(err)
 	}
+
+    bus, err := i2creg.Open("")
+    if err != nil {
+        panic(err)
+    }
+
+	ht16k33Dev := i2c.Dev{
+		Bus: bus,
+		Addr: uint16(*ht16k33Address),
+	}
+
+    ht16k33, err := randomProxyPrinter.NewHT16K33Display(ht16k33Dev)
+    if err != nil {
+        panic(err)
+    }
 
 	timeout := (time.Duration(*waitTimeout)) * time.Second
 
@@ -90,7 +108,7 @@ func main() {
 
 	p := randomProxyPrinter.NewRandomProxyPrinter(
 		db,
-		&randomProxyPrinter.StdoutDisplay{Logger: logger},
+        ht16k33,
 		randomProxyPrinter.NewGpioInput(
 			buttonDevice.NewButton(buttonPin, timeout),
 			rotaryEncoderDevice.NewRotaryEncoder(aPin, bPin, timeout, logrus.NewEntry(logger)),
