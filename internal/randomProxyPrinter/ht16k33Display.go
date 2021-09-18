@@ -30,13 +30,13 @@ type HT16K33Display struct {
 }
 
 func NewHT16K33Display(dev i2c.Dev) (*HT16K33Display, error){
-	if _, err := dev.Write([]byte{0x21}); err != nil {
-		return nil, fmt.Errorf("enable oscillator: %w", err)
-	}
+    if _, err := dev.Write([]byte{0x21}); err != nil {
+        return nil, fmt.Errorf("enable oscillator: %w", err)
+    }
 
-	if _, err := dev.Write([]byte{0xe2}); err != nil {
-		return nil, fmt.Errorf("set full brightness: %w", err)
-	}
+    if _, err := dev.Write([]byte{0xe2}); err != nil {
+        return nil, fmt.Errorf("set full brightness: %w", err)
+    }
 
     if _, err := dev.Write([]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}); err != nil {
         return nil, fmt.Errorf("clear display: %w", err)

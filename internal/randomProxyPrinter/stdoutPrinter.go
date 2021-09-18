@@ -1,15 +1,15 @@
 package randomProxyPrinter
 
 import (
-	"github.com/davecgh/go-spew/spew"
-	"github.com/sirupsen/logrus"
+    "github.com/davecgh/go-spew/spew"
+    "github.com/sirupsen/logrus"
 )
 
 type StdoutPrinter struct {
-	Logger *logrus.Logger
+    Logger *logrus.Logger
 }
 
 func (t *StdoutPrinter) Print(proxy Proxy) error {
-	spew.Dump(proxy)
-	return nil
+    spew.Dump(proxy)
+    return nil
 }
