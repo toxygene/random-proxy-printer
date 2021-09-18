@@ -2,17 +2,22 @@ package randomProxyPrinter
 
 import (
     "bytes"
+    "image"
+    "io"
+    "strings"
+
     "github.com/knq/escpos"
     "github.com/knq/escpos/raster"
     "github.com/mitchellh/go-wordwrap"
     "github.com/pkg/errors"
-    "image"
-    "io"
-    "strings"
 )
 
 type ESCPOSPrinter struct {
     destination io.ReadWriter
+}
+
+func NewESCPOSPrinter(destination io.ReadWriter) *ESCPOSPrinter {
+    return &ESCPOSPrinter{destination: destination}
 }
 
 func (t *ESCPOSPrinter) Print(proxy Proxy) error {
