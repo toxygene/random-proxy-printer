@@ -2,6 +2,7 @@ package randomProxyPrinter
 
 import (
 	"bytes"
+	"fmt"
 	"image"
 	_ "image/png"
 	"io"
@@ -22,7 +23,11 @@ func NewESCPOSPrinter(destination io.ReadWriter) *ESCPOSPrinter {
 }
 
 func (t *ESCPOSPrinter) Print(proxy Proxy) error {
-	p := escpos.New(t.destination)
+	p, err := escpos.NewPrinter(t.destination)
+	if err != nil {
+		return fmt.Errorf("create new printer: %w", err)
+	}
+
 	p.Init()
 
 	r := bytes.NewReader(proxy.Illustration)
