@@ -3,6 +3,7 @@ package randomProxyPrinter
 import (
 	"bytes"
 	"image"
+	_ "image/png"
 	"io"
 	"strings"
 
