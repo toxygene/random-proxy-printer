@@ -7,8 +7,8 @@ import (
 	"io"
 	"strings"
 
-	"github.com/knq/escpos"
-	"github.com/knq/escpos/raster"
+	"github.com/cloudinn/escpos"
+	"github.com/cloudinn/escpos/raster"
 	"github.com/mitchellh/go-wordwrap"
 	"github.com/pkg/errors"
 )
