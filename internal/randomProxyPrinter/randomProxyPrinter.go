@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 )
@@ -34,6 +35,10 @@ func NewRandomProxyPrinter(db *sql.DB,
 }
 
 func (t *RandomProxyPrinter) Run(parentCtx context.Context) error {
+	if err := t.displayer.Display(0); err != nil {
+		return fmt.Errorf("initialize display to 0: %w", err)
+	}
+
 	ctx, cancel := context.WithCancel(parentCtx)
 
 	g := new(errgroup.Group)
@@ -79,7 +84,9 @@ func (t *RandomProxyPrinter) Run(parentCtx context.Context) error {
 					WithField("value", t.value).
 					Trace("decremented value")
 
-				t.displayer.Display(t.value)
+				if err := t.displayer.Display(t.value); err != nil {
+					return fmt.Errorf("setting display: %w", err)
+				}
 			} else if action == PrintRandomProxy {
 				logEntry := t.logger.
 					WithField("value", t.value)
