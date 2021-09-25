@@ -117,7 +117,7 @@ func main() {
 
 	serialConfig := &serial.Config{
 		Name:   *printerDevicePath,
-		Baud:   192000,
+		Baud:   19200,
 		Parity: serial.ParityNone,
 	}
 
