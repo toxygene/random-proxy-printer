@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"time"
 
+	"github.com/kenshaw/escpos"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/sirupsen/logrus"
 	"github.com/tarm/serial"
@@ -27,6 +28,7 @@ func main() {
 	help := flag.Bool("help", false, "print help page")
 	ht16k33Bus := flag.String("ht16k33Bus", "", "Name of the I2C bus the HT16K33 is attached to")
 	ht16k33Address := flag.Int("ht16k33Address", 0, "Address of the HT16K33 on the I2C bus")
+	printerBaud := flag.Int("printerBaud", 19200, "Printer baud rate")
 	printerDevicePath := flag.String("printer", "", "Path to the printer device")
 	rotaryEncoderAPinName := flag.String("pinA", "", "GPIO name of pin A for the rotary encoder")
 	rotaryEncoderBPinName := flag.String("pinB", "", "GPIO name of pin B for the rotary encoder")
@@ -117,7 +119,7 @@ func main() {
 
 	serialConfig := &serial.Config{
 		Name:   *printerDevicePath,
-		Baud:   19200,
+		Baud:   *printerBaud,
 		Parity: serial.ParityNone,
 	}
 
@@ -128,6 +130,9 @@ func main() {
 	}
 	defer printerSerialPort.Close()
 
+	escposPrinter := escpos.New(printerSerialPort)
+	escposPrinter.Init()
+
 	p := randomProxyPrinter.NewRandomProxyPrinter(
 		db,
 		ht16k33,
@@ -136,7 +141,7 @@ func main() {
 			rotaryEncoderDevice.NewRotaryEncoder(aPin, bPin, timeout, logrus.NewEntry(logger)),
 			logrus.NewEntry(logger),
 		),
-		randomProxyPrinter.NewESCPOSPrinter(printerSerialPort),
+		randomProxyPrinter.NewESCPOSPrinter(escposPrinter),
 		logrus.NewEntry(logger),
 	)
 

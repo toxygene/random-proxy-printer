@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"image"
 	_ "image/png"
-	"io"
 	"strings"
 
 	"github.com/kenshaw/escpos"
@@ -14,18 +13,14 @@ import (
 )
 
 type ESCPOSPrinter struct {
-	destination io.ReadWriter
+	escpos *escpos.Escpos
 }
 
-func NewESCPOSPrinter(destination io.ReadWriter) *ESCPOSPrinter {
-	return &ESCPOSPrinter{destination: destination}
+func NewESCPOSPrinter(escpos *escpos.Escpos) *ESCPOSPrinter {
+	return &ESCPOSPrinter{escpos: escpos}
 }
 
 func (t *ESCPOSPrinter) Print(proxy Proxy) error {
-	p := escpos.New(t.destination)
-
-	p.Init()
-
 	r := bytes.NewReader(proxy.Illustration)
 	img, _, err := image.Decode(r)
 
@@ -38,17 +33,17 @@ func (t *ESCPOSPrinter) Print(proxy Proxy) error {
 		Threshold: 0.5,
 	}
 
-	rasterConv.Print(img, p)
+	rasterConv.Print(img, t.escpos)
 
 	for _, line := range strings.Split(proxy.Description, "\n") {
 		for _, wrappedLine := range strings.Split(wordwrap.WrapString(line, 32), "\n") {
-			p.Text(map[string]string{}, wrappedLine)
+			t.escpos.Text(map[string]string{}, wrappedLine)
 		}
 	}
 
-	p.Feed(map[string]string{})
-	p.Feed(map[string]string{})
-	p.Feed(map[string]string{})
+	t.escpos.Feed(map[string]string{})
+	t.escpos.Feed(map[string]string{})
+	t.escpos.Feed(map[string]string{})
 
 	return nil
 }
