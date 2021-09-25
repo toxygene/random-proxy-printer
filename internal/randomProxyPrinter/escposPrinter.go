@@ -6,17 +6,17 @@ import (
 	_ "image/png"
 	"strings"
 
-	"github.com/kenshaw/escpos"
-	"github.com/kenshaw/escpos/raster"
+	"github.com/cloudinn/escpos"
+	"github.com/cloudinn/escpos/raster"
 	"github.com/mitchellh/go-wordwrap"
 	"github.com/pkg/errors"
 )
 
 type ESCPOSPrinter struct {
-	escpos *escpos.Escpos
+	escpos *escpos.Printer
 }
 
-func NewESCPOSPrinter(escpos *escpos.Escpos) *ESCPOSPrinter {
+func NewESCPOSPrinter(escpos *escpos.Printer) *ESCPOSPrinter {
 	return &ESCPOSPrinter{escpos: escpos}
 }
 
