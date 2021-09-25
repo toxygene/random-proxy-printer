@@ -2,14 +2,13 @@ package randomProxyPrinter
 
 import (
 	"bytes"
-	"fmt"
 	"image"
 	_ "image/png"
 	"io"
 	"strings"
 
-	"github.com/cloudinn/escpos"
-	"github.com/cloudinn/escpos/raster"
+	"github.com/kenshaw/escpos"
+	"github.com/kenshaw/escpos/raster"
 	"github.com/mitchellh/go-wordwrap"
 	"github.com/pkg/errors"
 )
@@ -23,10 +22,7 @@ func NewESCPOSPrinter(destination io.ReadWriter) *ESCPOSPrinter {
 }
 
 func (t *ESCPOSPrinter) Print(proxy Proxy) error {
-	p, err := escpos.NewPrinter(t.destination)
-	if err != nil {
-		return fmt.Errorf("create new printer: %w", err)
-	}
+	p := escpos.New(t.destination)
 
 	p.Init()
 

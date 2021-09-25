@@ -10,6 +10,7 @@ import (
 
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/sirupsen/logrus"
+	"github.com/tarm/serial"
 	buttonDevice "github.com/toxygene/periphio-gpio-button/device"
 	rotaryEncoderDevice "github.com/toxygene/periphio-gpio-rotary-encoder/v2/device"
 	"github.com/toxygene/random-proxy-printer/internal/randomProxyPrinter"
@@ -114,12 +115,18 @@ func main() {
 		os.Exit(1)
 	}
 
-	escpos, err := os.OpenFile(*printerDevicePath, os.O_RDWR, 0)
+	serialConfig := &serial.Config{
+		Name:   *printerDevicePath,
+		Baud:   192000,
+		Parity: serial.ParityNone,
+	}
+
+	printerSerialPort, err := serial.OpenPort(serialConfig)
 	if err != nil {
-		logger.WithField("escpos", *printerDevicePath).Error("could not open the printer device")
+		logger.WithError(err).WithField("serial_config", serialConfig).Error("could not open serial port")
 		os.Exit(1)
 	}
-	defer escpos.Close()
+	defer printerSerialPort.Close()
 
 	p := randomProxyPrinter.NewRandomProxyPrinter(
 		db,
@@ -129,7 +136,7 @@ func main() {
 			rotaryEncoderDevice.NewRotaryEncoder(aPin, bPin, timeout, logrus.NewEntry(logger)),
 			logrus.NewEntry(logger),
 		),
-		randomProxyPrinter.NewESCPOSPrinter(escpos),
+		randomProxyPrinter.NewESCPOSPrinter(printerSerialPort),
 		logrus.NewEntry(logger),
 	)
 
