@@ -68,7 +68,9 @@ func (t *RandomProxyPrinter) Run(parentCtx context.Context) error {
 					WithField("value", t.value).
 					Trace("incremented value")
 
-				t.displayer.Display(t.value)
+				if err := t.displayer.Display(t.value); err != nil {
+					return fmt.Errorf("display value: %w", err)
+				}
 			} else if action == DecrementValue {
 				t.value--
 
@@ -85,7 +87,7 @@ func (t *RandomProxyPrinter) Run(parentCtx context.Context) error {
 					Trace("decremented value")
 
 				if err := t.displayer.Display(t.value); err != nil {
-					return fmt.Errorf("setting display: %w", err)
+					return fmt.Errorf("displaying value: %w", err)
 				}
 			} else if action == PrintRandomProxy {
 				logEntry := t.logger.
@@ -95,9 +97,9 @@ func (t *RandomProxyPrinter) Run(parentCtx context.Context) error {
 
 				proxy := Proxy{}
 
-				row := t.db.QueryRow("SELECT name, description, illustration FROM proxies WHERE value = ? ORDER BY RANDOM() LIMIT 1", t.value)
+				row := t.db.QueryRow("SELECT name, description, print_data FROM proxies WHERE value = ? ORDER BY RANDOM() LIMIT 1", t.value)
 
-				if err := row.Scan(&proxy.Name, &proxy.Description, &proxy.Illustration); err != nil {
+				if err := row.Scan(&proxy.Name, &proxy.Description, &proxy.PrintData); err != nil {
 					logEntry.WithError(err).
 						Error("failed to fetch random proxy from database")
 

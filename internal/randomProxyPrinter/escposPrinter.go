@@ -1,15 +1,12 @@
 package randomProxyPrinter
 
 import (
-	"bytes"
-	"image"
+	"fmt"
 	_ "image/png"
 	"strings"
 
 	"github.com/cloudinn/escpos"
-	"github.com/cloudinn/escpos/raster"
 	"github.com/mitchellh/go-wordwrap"
-	"github.com/pkg/errors"
 )
 
 type ESCPOSPrinter struct {
@@ -21,29 +18,21 @@ func NewESCPOSPrinter(escpos *escpos.Printer) *ESCPOSPrinter {
 }
 
 func (t *ESCPOSPrinter) Print(proxy Proxy) error {
-	r := bytes.NewReader(proxy.Illustration)
-	img, _, err := image.Decode(r)
-
-	if err != nil {
-		return errors.Wrap(err, "could not decode the proxy illustration")
+	if _, err := t.escpos.Write(proxy.PrintData); err != nil {
+		return fmt.Errorf("write print data: %w", err)
 	}
-
-	rasterConv := &raster.Converter{
-		MaxWidth:  384,
-		Threshold: 0.5,
-	}
-
-	rasterConv.Print(img, t.escpos)
 
 	for _, line := range strings.Split(proxy.Description, "\n") {
 		for _, wrappedLine := range strings.Split(wordwrap.WrapString(line, 32), "\n") {
-			t.escpos.Text(map[string]string{}, wrappedLine)
+			if err := t.escpos.Text(map[string]string{}, wrappedLine); err != nil {
+				return fmt.Errorf("write text: %w", err)
+			}
 		}
 	}
 
-	t.escpos.Feed(map[string]string{})
-	t.escpos.Feed(map[string]string{})
-	t.escpos.Feed(map[string]string{})
+	_ = t.escpos.Feed(map[string]string{})
+	_ = t.escpos.Feed(map[string]string{})
+	_ = t.escpos.Feed(map[string]string{})
 
 	return nil
 }
