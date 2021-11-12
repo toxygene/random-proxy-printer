@@ -52,6 +52,10 @@ func (t *RandomProxyPrinter) Run(parentCtx context.Context) error {
 	})
 
 	g.Go(func() error {
+		if err := t.displayer.Display(0); err != nil {
+			return fmt.Errorf("display value: %w", err)
+		}
+
 		for action := range actions {
 			if action == IncrementValue {
 				t.value++
