@@ -1,5 +1,5 @@
 package randomProxyPrinter
 
 type Printer interface {
-    Print(Proxy) error
+	Print(Proxy) error
 }
