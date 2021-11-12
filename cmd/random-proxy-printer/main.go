@@ -8,7 +8,7 @@ import (
 	"os/signal"
 	"time"
 
-	"github.com/cloudinn/escpos"
+	"github.com/kenshaw/escpos"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/sirupsen/logrus"
 	"github.com/tarm/serial"
@@ -130,12 +130,7 @@ func main() {
 	}
 	defer printerSerialPort.Close()
 
-	escposPrinter, err := escpos.NewPrinter(printerSerialPort)
-	if err != nil {
-		logger.WithError(err).Error("could not create escpos printer")
-		os.Exit(1)
-	}
-
+	escposPrinter := escpos.New(printerSerialPort)
 	escposPrinter.Init()
 
 	p := randomProxyPrinter.NewRandomProxyPrinter(
