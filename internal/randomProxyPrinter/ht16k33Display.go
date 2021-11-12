@@ -34,6 +34,10 @@ func NewHT16K33Display(dev i2c.Dev) (*HT16K33Display, error) {
 		return nil, fmt.Errorf("enable oscillator: %w", err)
 	}
 
+	if _, err := dev.Write([]byte{0x81}); err != nil {
+		return nil, fmt.Errorf("enable display: %w", err)
+	}
+
 	if _, err := dev.Write([]byte{0xe2}); err != nil {
 		return nil, fmt.Errorf("set full brightness: %w", err)
 	}
