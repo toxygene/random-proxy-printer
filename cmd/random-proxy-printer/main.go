@@ -60,6 +60,8 @@ func main() {
 		os.Exit(1)
 	}
 
+	defer db.Close()
+
 	if _, err := host.Init(); err != nil {
 		logger.WithError(err).Error("could not initialize the host")
 		os.Exit(1)
@@ -70,6 +72,8 @@ func main() {
 		logger.WithField("bus", *ht16k33Bus).WithError(err).Error("could not find i2c bus")
 		os.Exit(1)
 	}
+
+	defer bus.Close()
 
 	ht16k33Dev := i2c.Dev{
 		Bus:  bus,
@@ -132,6 +136,8 @@ func main() {
 
 	escposPrinter := escpos.New(printerSerialPort)
 	escposPrinter.Init()
+
+	defer escposPrinter.End()
 
 	p := randomProxyPrinter.NewRandomProxyPrinter(
 		db,
