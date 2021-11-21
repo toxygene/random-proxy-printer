@@ -135,9 +135,6 @@ func main() {
 	defer printerSerialPort.Close()
 
 	escposPrinter := escpos.New(printerSerialPort)
-	escposPrinter.Init()
-
-	defer escposPrinter.End()
 
 	p := randomProxyPrinter.NewRandomProxyPrinter(
 		db,

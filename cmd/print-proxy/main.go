@@ -46,15 +46,12 @@ func main() {
 	defer printerSerialPort.Close()
 
 	escposPrinter := escpos.New(printerSerialPort)
-	escposPrinter.Init()
-
-	defer escposPrinter.End()
 
 	proxyPrinter := randomProxyPrinter.NewESCPOSPrinter(escposPrinter)
 
 	proxy := randomProxyPrinter.Proxy{}
 
-	row := db.QueryRow("SELECT name, description, print_data FROM proxies WHERE name= ? ORDER BY RANDOM() LIMIT 1", *cardName)
+	row := db.QueryRow("SELECT name, description, print_data FROM proxies WHERE name=?", *cardName)
 
 	if err := row.Scan(&proxy.Name, &proxy.Description, &proxy.PrintData); err != nil {
 		println("failed to fetch random proxy from database")

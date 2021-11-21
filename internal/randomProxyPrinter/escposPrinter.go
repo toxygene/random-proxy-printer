@@ -18,6 +18,8 @@ func NewESCPOSPrinter(escpos *escpos.Escpos) *ESCPOSPrinter {
 }
 
 func (t *ESCPOSPrinter) Print(proxy Proxy) error {
+	t.escpos.Init()
+
 	if _, err := t.escpos.WriteRaw(proxy.PrintData); err != nil {
 		return fmt.Errorf("write print data: %w", err)
 	}
@@ -27,12 +29,12 @@ func (t *ESCPOSPrinter) Print(proxy Proxy) error {
 	for _, line := range strings.Split(proxy.Description, "\n") {
 		for _, wrappedLine := range strings.Split(wordwrap.WrapString(line, 32), "\n") {
 			t.escpos.Text(map[string]string{}, wrappedLine)
-			t.escpos.Feed(map[string]string{})
+			t.escpos.Text(map[string]string{}, "\n")
 		}
-		t.escpos.Feed(map[string]string{})
+		t.escpos.Text(map[string]string{}, "\n")
 	}
 
-	t.escpos.Feed(map[string]string{"line": "2"})
+	t.escpos.Text(map[string]string{}, "\n\n")
 
 	return nil
 }
