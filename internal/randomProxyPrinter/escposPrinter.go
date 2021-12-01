@@ -18,8 +18,6 @@ func NewESCPOSPrinter(escpos *escpos.Escpos) *ESCPOSPrinter {
 }
 
 func (t *ESCPOSPrinter) Print(proxy Proxy) error {
-	t.escpos.Init()
-
 	if _, err := t.escpos.WriteRaw(proxy.PrintData); err != nil {
 		return fmt.Errorf("write print data: %w", err)
 	}
