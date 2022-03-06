@@ -5,6 +5,7 @@ go 1.17
 require (
 	github.com/cloudinn/escpos v0.0.0-20211028173716-d373496fa7bb
 	github.com/davecgh/go-spew v1.1.1
+	github.com/kenshaw/escpos v0.0.0-20201012084129-81d0344e35fa
 	github.com/mattn/go-sqlite3 v2.0.3+incompatible
 	github.com/mitchellh/go-wordwrap v1.0.1
 	github.com/sirupsen/logrus v1.8.1
