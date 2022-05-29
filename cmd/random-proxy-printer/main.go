@@ -12,33 +12,32 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/sirupsen/logrus"
 	"github.com/tarm/serial"
-	buttonDevice "github.com/toxygene/periphio-gpio-button/device"
-	rotaryEncoderDevice "github.com/toxygene/periphio-gpio-rotary-encoder/v2/device"
+	"github.com/toxygene/periphio-ky-040-rotary-encoder/device"
 	"github.com/toxygene/random-proxy-printer/internal/randomProxyPrinter"
 	"golang.org/x/sync/errgroup"
-	"periph.io/x/periph/conn/gpio"
-	"periph.io/x/periph/conn/gpio/gpioreg"
-	"periph.io/x/periph/conn/i2c"
-	"periph.io/x/periph/conn/i2c/i2creg"
-	"periph.io/x/periph/host"
+	"periph.io/x/conn/v3/gpio"
+	"periph.io/x/conn/v3/gpio/gpioreg"
+	"periph.io/x/conn/v3/i2c"
+	"periph.io/x/conn/v3/i2c/i2creg"
+	"periph.io/x/host/v3"
 )
 
 func main() {
-	buttonPinName := flag.String("button", "", "GPIO name of button for the rotary encoder")
+	switchPinName := flag.String("switch", "", "GPIO name of switch for the rotary encoder")
 	help := flag.Bool("help", false, "print help page")
 	ht16k33Bus := flag.String("ht16k33Bus", "", "Name of the I2C bus the HT16K33 is attached to")
 	ht16k33Address := flag.Int("ht16k33Address", 0, "Address of the HT16K33 on the I2C bus")
 	printerBaud := flag.Int("printerBaud", 19200, "Printer baud rate")
 	printerDevicePath := flag.String("printer", "", "Path to the printer device")
-	rotaryEncoderAPinName := flag.String("pinA", "", "GPIO name of pin A for the rotary encoder")
-	rotaryEncoderBPinName := flag.String("pinB", "", "GPIO name of pin B for the rotary encoder")
+	rotaryEncoderClockPinName := flag.String("clock", "", "GPIO name of the clock pin for the rotary encoder")
+	rotaryEncoderDataPinName := flag.String("data", "", "GPIO name of the data pin for the rotary encoder")
 	sqlitePathPtr := flag.String("proxies", "", "path to the SQLite proxies database")
-	waitTimeout := flag.Int("timeout", 2, "timeout (in seconds) for reading a pin")
+	waitTimeout := flag.Int("timeout", 1, "timeout (in seconds) for reading a pin")
 	logging := flag.String("logging", "", "logging level")
 
 	flag.Parse()
 
-	if *help || *buttonPinName == "" || *rotaryEncoderAPinName == "" || *rotaryEncoderBPinName == "" || *sqlitePathPtr == "" || *ht16k33Bus == "" || *ht16k33Address == 0 || *printerDevicePath == "" {
+	if *help || *switchPinName == "" || *rotaryEncoderClockPinName == "" || *rotaryEncoderDataPinName == "" || *sqlitePathPtr == "" || *ht16k33Bus == "" || *ht16k33Address == 0 || *printerDevicePath == "" {
 		flag.Usage()
 		os.Exit(0)
 	}
@@ -84,36 +83,36 @@ func main() {
 
 	timeout := (time.Duration(*waitTimeout)) * time.Second
 
-	buttonPin := gpioreg.ByName(*buttonPinName)
-	if buttonPin == nil {
-		logger.WithField("button", *buttonPinName).Error("no gpio bin found for button")
+	switchPin := gpioreg.ByName(*switchPinName)
+	if switchPin == nil {
+		logger.WithField("switch", *switchPinName).Error("no gpio pin found for switch")
 		os.Exit(1)
 	}
 
-	if err := buttonPin.In(gpio.PullUp, gpio.BothEdges); err != nil {
-		logger.WithField("button", buttonPin).WithError(err).Error("could not setup button for input")
+	if err := switchPin.In(gpio.PullUp, gpio.BothEdges); err != nil {
+		logger.WithField("switch", switchPin).WithError(err).Error("could not setup switch for input")
 		os.Exit(1)
 	}
 
-	aPin := gpioreg.ByName(*rotaryEncoderAPinName)
-	if aPin == nil {
-		logger.WithField("pin_a", *rotaryEncoderAPinName).Error("no gpio pin found for pin a")
+	clockPin := gpioreg.ByName(*rotaryEncoderClockPinName)
+	if clockPin == nil {
+		logger.WithField("clock_pin", *rotaryEncoderClockPinName).Error("no gpio pin found for clock")
 		os.Exit(1)
 	}
 
-	if err := aPin.In(gpio.PullUp, gpio.BothEdges); err != nil {
-		logger.WithField("pin_a", aPin).WithError(err).Error("could not setup pin a for input")
+	if err := clockPin.In(gpio.PullUp, gpio.BothEdges); err != nil {
+		logger.WithField("clock_pin", clockPin).WithError(err).Error("could not setup the clock pin for input")
 		os.Exit(1)
 	}
 
-	bPin := gpioreg.ByName(*rotaryEncoderBPinName)
-	if bPin == nil {
-		logger.WithField("pin_b", *rotaryEncoderBPinName).Error("no gpio pin found for pin b")
+	dataPin := gpioreg.ByName(*rotaryEncoderDataPinName)
+	if dataPin == nil {
+		logger.WithField("data_pin", *rotaryEncoderDataPinName).Error("no gpio pin found for data")
 		os.Exit(1)
 	}
 
-	if err := bPin.In(gpio.PullUp, gpio.BothEdges); err != nil {
-		logger.WithField("pin_b", bPin).WithError(err).Error("could not setup pin b for input")
+	if err := dataPin.In(gpio.PullUp, gpio.BothEdges); err != nil {
+		logger.WithField("data_pin", dataPin).WithError(err).Error("could not setup data pin for input")
 		os.Exit(1)
 	}
 
@@ -136,10 +135,13 @@ func main() {
 	p := randomProxyPrinter.NewRandomProxyPrinter(
 		db,
 		ht16k33,
-		randomProxyPrinter.NewGpioInput(
-			buttonDevice.NewButton(buttonPin, timeout),
-			rotaryEncoderDevice.NewRotaryEncoder(aPin, bPin, timeout, logrus.NewEntry(logger)),
-			logrus.NewEntry(logger),
+		randomProxyPrinter.NewKY040Inputter(
+			device.NewRotaryEncoder(
+				clockPin,
+				dataPin,
+				switchPin,
+				timeout,
+			),
 		),
 		randomProxyPrinter.NewESCPOSPrinter(escposPrinter),
 		logrus.NewEntry(logger),

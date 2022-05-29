@@ -4,6 +4,7 @@ import (
 	"fmt"
 	_ "image/png"
 	"strings"
+	"sync"
 
 	"github.com/kenshaw/escpos"
 	"github.com/mitchellh/go-wordwrap"
@@ -11,6 +12,7 @@ import (
 
 type ESCPOSPrinter struct {
 	escpos *escpos.Escpos
+	mu     sync.Mutex
 }
 
 func NewESCPOSPrinter(escpos *escpos.Escpos) *ESCPOSPrinter {

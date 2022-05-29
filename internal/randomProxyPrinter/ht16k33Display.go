@@ -2,7 +2,8 @@ package randomProxyPrinter
 
 import (
 	"fmt"
-	"periph.io/x/periph/conn/i2c"
+
+	"periph.io/x/conn/v3/i2c"
 )
 
 var numbers = map[int][]byte{
