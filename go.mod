@@ -19,7 +19,7 @@ require (
 
 require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	golang.org/x/sys v0.0.0-20220227234510-4e6760a101f9 // indirect
+	golang.org/x/sys v0.1.0 // indirect
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
 	periph.io/x/conn/v3 v3.6.10
 	periph.io/x/host/v3 v3.7.2
