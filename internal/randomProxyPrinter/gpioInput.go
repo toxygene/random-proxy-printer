@@ -2,9 +2,11 @@ package randomProxyPrinter
 
 import (
 	"context"
+	"fmt"
+
 	"github.com/sirupsen/logrus"
-	buttonDevice "github.com/toxygene/periphio-gpio-button/device"
-	rotaryEncoderDevice "github.com/toxygene/periphio-gpio-rotary-encoder/v2/device"
+	buttonDevice "github.com/toxygene/gpiod-button/device"
+	rotaryEncoderDevice "github.com/toxygene/gpiod-ky-040-rotary-encoder/device"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -22,32 +24,37 @@ type GpioInput struct {
 	rotaryEncoder *rotaryEncoderDevice.RotaryEncoder
 }
 
-func (t *GpioInput) Run(ctx context.Context, actions chan<- Action) error {
-	g := new(errgroup.Group)
+func (t *GpioInput) Run(parentCtx context.Context, actions chan<- Action) error {
+	t.logger.Info("starting gpio input")
+	defer t.logger.Info("gpio input finished")
+
+	g, ctx := errgroup.WithContext(parentCtx)
 
 	rotaryEncoderActions := make(chan rotaryEncoderDevice.Action)
 
 	g.Go(func() error {
 		defer close(rotaryEncoderActions)
 
-		t.logger.Trace("starting rotary encoder")
+		t.logger.Info("rotary encoder goroutine starting")
+		defer t.logger.Info("rotary encoder goroutine finished")
 
 		if err := t.rotaryEncoder.Run(ctx, rotaryEncoderActions); err != nil {
-			return err
+			return fmt.Errorf("run rotary encoder: %w", err)
 		}
-
-		t.logger.Trace("rotary encoder finished")
 
 		return nil
 	})
 
 	g.Go(func() error {
+		t.logger.Info("rotary encoder action handler goroutine started")
+		defer t.logger.Info("rotary encoder action handler goroutine finished")
+
 		for rotaryEncoderAction := range rotaryEncoderActions {
 			t.logger.WithField("rotary_encoder_action", rotaryEncoderAction).Trace("rotary encoder action")
 
-			if rotaryEncoderAction == rotaryEncoderDevice.CW {
+			if rotaryEncoderAction == rotaryEncoderDevice.Clockwise {
 				actions <- IncrementValue
-			} else if rotaryEncoderAction == rotaryEncoderDevice.CCW {
+			} else if rotaryEncoderAction == rotaryEncoderDevice.CounterClockwise {
 				actions <- DecrementValue
 			}
 		}
@@ -58,10 +65,26 @@ func (t *GpioInput) Run(ctx context.Context, actions chan<- Action) error {
 	buttonActions := make(chan buttonDevice.Action)
 
 	g.Go(func() error {
+		defer close(buttonActions)
+
+		t.logger.Info("button goroutine started")
+		defer t.logger.Info("button goroutine finished")
+
+		if err := t.button.Run(ctx, buttonActions); err != nil {
+			return fmt.Errorf("button run: %w", err)
+		}
+
+		return nil
+	})
+
+	g.Go(func() error {
+		t.logger.Info("button action handler goroutine started")
+		defer t.logger.Info("button action handler goroutine finished")
+
 		for buttonAction := range buttonActions {
 			t.logger.WithField("button_action", buttonAction).Trace("button action")
 
-			if buttonAction == buttonDevice.Push {
+			if buttonAction == buttonDevice.Press {
 				actions <- PrintRandomProxy
 			}
 		}
@@ -69,27 +92,9 @@ func (t *GpioInput) Run(ctx context.Context, actions chan<- Action) error {
 		return nil
 	})
 
-	g.Go(func() error {
-		defer close(buttonActions)
-
-		t.logger.Trace("starting button")
-
-		if err := t.button.Run(ctx, buttonActions); err != nil {
-			return err
-		}
-
-		t.logger.Trace("button finished")
-
-		return nil
-	})
-
-	t.logger.Trace("starting gpio input")
-
 	if err := g.Wait(); err != nil {
-		return err
+		return fmt.Errorf("run gpio input: %w", err)
 	}
-
-	t.logger.Trace("gpio input finished")
 
 	return nil
 }

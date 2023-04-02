@@ -3,44 +3,49 @@ package main
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"flag"
+	"fmt"
 	"os"
 	"os/signal"
-	"time"
+	"strconv"
 
+	"github.com/davecheney/i2c"
 	"github.com/kenshaw/escpos"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/sirupsen/logrus"
 	"github.com/tarm/serial"
-	buttonDevice "github.com/toxygene/periphio-gpio-button/device"
-	rotaryEncoderDevice "github.com/toxygene/periphio-gpio-rotary-encoder/v2/device"
+	buttonDevice "github.com/toxygene/gpiod-button/device"
+	rotaryEncoderDevice "github.com/toxygene/gpiod-ky-040-rotary-encoder/device"
+	ht16k33Device "github.com/toxygene/i2c-ht16k33"
 	"github.com/toxygene/random-proxy-printer/internal/randomProxyPrinter"
+	"github.com/warthog618/gpiod"
 	"golang.org/x/sync/errgroup"
-	"periph.io/x/periph/conn/gpio"
-	"periph.io/x/periph/conn/gpio/gpioreg"
-	"periph.io/x/periph/conn/i2c"
-	"periph.io/x/periph/conn/i2c/i2creg"
-	"periph.io/x/periph/host"
 )
 
 func main() {
-	buttonPinName := flag.String("button", "", "GPIO name of button for the rotary encoder")
+	buttonPinNumber := flag.Int("button", 0, "GPIO number of button for the rotary encoder")
+	chipName := flag.String("chipName", "", "Chip name for the GPIO device of the rotary encoder and button")
 	help := flag.Bool("help", false, "print help page")
-	ht16k33Bus := flag.String("ht16k33Bus", "", "Name of the I2C bus the HT16K33 is attached to")
-	ht16k33Address := flag.Int("ht16k33Address", 0, "Address of the HT16K33 on the I2C bus")
+	ht16k33Bus := flag.Int("ht16k33Bus", 0, "I2C bus number the HT16K33 is attached to")
+	ht16k33HexAddress := flag.String("ht16k33HexAddress", "", "Address, in hex, of the HT16K33 on the I2C bus")
+	logging := flag.String("logging", "", "logging level")
 	printerBaud := flag.Int("printerBaud", 19200, "Printer baud rate")
 	printerDevicePath := flag.String("printer", "", "Path to the printer device")
-	rotaryEncoderAPinName := flag.String("pinA", "", "GPIO name of pin A for the rotary encoder")
-	rotaryEncoderBPinName := flag.String("pinB", "", "GPIO name of pin B for the rotary encoder")
+	rotaryEncoderClockPinNumber := flag.Int("rotaryEncoderClock", 0, "GPIO number of clock pin for the rotary encoder")
+	rotaryEncoderDataPinNumber := flag.Int("rotaryEncoderData", 0, "GPIO number of data pin for the rotary encoder")
 	sqlitePathPtr := flag.String("proxies", "", "path to the SQLite proxies database")
-	waitTimeout := flag.Int("timeout", 2, "timeout (in seconds) for reading a pin")
-	logging := flag.String("logging", "", "logging level")
 
 	flag.Parse()
 
-	if *help || *buttonPinName == "" || *rotaryEncoderAPinName == "" || *rotaryEncoderBPinName == "" || *sqlitePathPtr == "" || *ht16k33Bus == "" || *ht16k33Address == 0 || *printerDevicePath == "" {
+	if *help || *buttonPinNumber == 0 || *rotaryEncoderClockPinNumber == 0 || *rotaryEncoderDataPinNumber == 0 || *sqlitePathPtr == "" || *ht16k33HexAddress == "" || *printerDevicePath == "" {
 		flag.Usage()
-		os.Exit(0)
+
+		if *help {
+			os.Exit(0)
+		} else {
+			os.Exit(1)
+		}
 	}
 
 	logger := logrus.New()
@@ -48,7 +53,8 @@ func main() {
 	if *logging != "" {
 		logLevel, err := logrus.ParseLevel(*logging)
 		if err != nil {
-			panic(err)
+			println(fmt.Errorf("parse log level: %w", err).Error())
+			os.Exit(1)
 		}
 
 		logger.SetLevel(logLevel)
@@ -57,69 +63,20 @@ func main() {
 	db, err := sql.Open("sqlite3", *sqlitePathPtr)
 	if err != nil {
 		logger.WithField("sqlite", *sqlitePathPtr).WithError(err).Error("could not open sqlite3 database")
+		println(fmt.Errorf("open sqlite database: %w", err).Error())
 		os.Exit(1)
 	}
 
 	defer db.Close()
 
-	if _, err := host.Init(); err != nil {
-		logger.WithError(err).Error("could not initialize the host")
-		os.Exit(1)
-	}
-
-	bus, err := i2creg.Open(*ht16k33Bus)
+	chip, err := gpiod.NewChip(*chipName)
 	if err != nil {
-		logger.WithField("bus", *ht16k33Bus).WithError(err).Error("could not find i2c bus")
+		logger.WithField("chipName", chipName).WithError(err).Error("could not create gpiod chip")
+		println(fmt.Errorf("create gpiod chip: %w", err).Error())
 		os.Exit(1)
 	}
 
-	defer bus.Close()
-
-	ht16k33Dev := i2c.Dev{
-		Bus:  bus,
-		Addr: uint16(*ht16k33Address),
-	}
-
-	ht16k33, err := randomProxyPrinter.NewHT16K33Display(ht16k33Dev)
-	if err != nil {
-		logger.WithField("device", ht16k33Dev).WithError(err).Error("could not create ht16k33 display")
-		os.Exit(1)
-	}
-
-	timeout := (time.Duration(*waitTimeout)) * time.Second
-
-	buttonPin := gpioreg.ByName(*buttonPinName)
-	if buttonPin == nil {
-		logger.WithField("button", *buttonPinName).Error("no gpio bin found for button")
-		os.Exit(1)
-	}
-
-	if err := buttonPin.In(gpio.PullUp, gpio.BothEdges); err != nil {
-		logger.WithField("button", buttonPin).WithError(err).Error("could not setup button for input")
-		os.Exit(1)
-	}
-
-	aPin := gpioreg.ByName(*rotaryEncoderAPinName)
-	if aPin == nil {
-		logger.WithField("pin_a", *rotaryEncoderAPinName).Error("no gpio pin found for pin a")
-		os.Exit(1)
-	}
-
-	if err := aPin.In(gpio.PullUp, gpio.BothEdges); err != nil {
-		logger.WithField("pin_a", aPin).WithError(err).Error("could not setup pin a for input")
-		os.Exit(1)
-	}
-
-	bPin := gpioreg.ByName(*rotaryEncoderBPinName)
-	if bPin == nil {
-		logger.WithField("pin_b", *rotaryEncoderBPinName).Error("no gpio pin found for pin b")
-		os.Exit(1)
-	}
-
-	if err := bPin.In(gpio.PullUp, gpio.BothEdges); err != nil {
-		logger.WithField("pin_b", bPin).WithError(err).Error("could not setup pin b for input")
-		os.Exit(1)
-	}
+	defer chip.Close()
 
 	serialConfig := &serial.Config{
 		Name:   *printerDevicePath,
@@ -129,58 +86,76 @@ func main() {
 
 	printerSerialPort, err := serial.OpenPort(serialConfig)
 	if err != nil {
-		logger.WithError(err).WithField("serial_config", serialConfig).Error("could not open serial port")
+		logger.WithError(err).WithField("serialConfig", serialConfig).Error("could not open serial port")
+		println(fmt.Errorf("open serial port: %w", err).Error())
 		os.Exit(1)
 	}
+
 	defer printerSerialPort.Close()
 
-	escposPrinter := escpos.New(printerSerialPort)
-	escposPrinter.Init()
+	ht16k33Address, err := strconv.ParseUint(*ht16k33HexAddress, 16, 8)
+	if err != nil {
+		logger.WithError(err).WithField("ht16k33HexAddress", *ht16k33HexAddress).Error("could not decode HT16K33 hex address")
+		println(fmt.Errorf("decoding ht16k33 hex address: %w", err).Error())
+		os.Exit(1)
+	}
+
+	i2c, err := i2c.New(uint8(ht16k33Address), *ht16k33Bus)
+	if err != nil {
+		logger.WithError(err).WithField("ht16k33Address", uint8(ht16k33Address)).Error("could not create I2C device")
+		println(fmt.Errorf("create i2c device: %w", err).Error())
+		os.Exit(1)
+	}
+
+	escPos := escpos.New(printerSerialPort)
+	escPos.Init()
 
 	p := randomProxyPrinter.NewRandomProxyPrinter(
 		db,
-		ht16k33,
+		randomProxyPrinter.NewHT16K33Display(ht16k33Device.NewI2cHt16k33(i2c)),
 		randomProxyPrinter.NewGpioInput(
-			buttonDevice.NewButton(buttonPin, timeout),
-			rotaryEncoderDevice.NewRotaryEncoder(aPin, bPin, timeout, logrus.NewEntry(logger)),
+			buttonDevice.NewButton(chip, *buttonPinNumber, logrus.NewEntry(logger)),
+			rotaryEncoderDevice.NewRotaryEncoder(chip, *rotaryEncoderClockPinNumber, *rotaryEncoderDataPinNumber, logrus.NewEntry(logger)),
 			logrus.NewEntry(logger),
 		),
-		randomProxyPrinter.NewESCPOSPrinter(escposPrinter),
+		randomProxyPrinter.NewESCPOSPrinter(escPos, logrus.NewEntry(logger)),
 		logrus.NewEntry(logger),
 	)
 
-	ctx, cancel := context.WithCancel(context.Background())
-
-	g := new(errgroup.Group)
+	g, ctx := errgroup.WithContext(context.Background())
 
 	g.Go(func() error {
-		return p.Run(ctx)
+		logger.Info("random proxy printer goroutine started")
+		defer logger.Info("random proxy printer goroutine finished")
+
+		if err := p.Run(ctx); err != nil {
+			return fmt.Errorf("run random proxy printer: %w", err)
+		}
+
+		return nil
 	})
 
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt)
+
 	g.Go(func() error {
-		osSignalChannel := make(chan os.Signal, 1)
-		signal.Notify(osSignalChannel, os.Interrupt)
+		defer close(c)
 
-		for {
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			case <-osSignalChannel:
-				logger.Trace("SIGINT received")
+		logger.Info("interrupt handler started")
+		defer logger.Info("interrupt handler finished")
 
-				cancel()
+		select {
+		case <-c:
+			logger.Trace("sigint received")
 
-				return nil
-			}
+			return errors.New("application interrupted")
+		case <-ctx.Done():
+			return ctx.Err()
 		}
 	})
 
-	logger.Trace("starting run group")
-
 	if err := g.Wait(); err != nil {
-		logger.WithError(err).
-			Error("run log group failed")
-
+		println(fmt.Errorf("run proxy printer: %w", err).Error())
 		os.Exit(1)
 	}
 

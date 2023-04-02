@@ -7,17 +7,22 @@ import (
 
 	"github.com/kenshaw/escpos"
 	"github.com/mitchellh/go-wordwrap"
+	"github.com/sirupsen/logrus"
 )
 
 type ESCPOSPrinter struct {
 	escpos *escpos.Escpos
+	logger *logrus.Entry
 }
 
-func NewESCPOSPrinter(escpos *escpos.Escpos) *ESCPOSPrinter {
-	return &ESCPOSPrinter{escpos: escpos}
+func NewESCPOSPrinter(escpos *escpos.Escpos, logger *logrus.Entry) *ESCPOSPrinter {
+	return &ESCPOSPrinter{escpos: escpos, logger: logger}
 }
 
 func (t *ESCPOSPrinter) Print(proxy Proxy) error {
+	t.logger.Info("print starting")
+	defer t.logger.Info("print finished")
+
 	if _, err := t.escpos.WriteRaw(proxy.PrintData); err != nil {
 		return fmt.Errorf("write print data: %w", err)
 	}

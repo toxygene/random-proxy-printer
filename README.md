@@ -7,7 +7,7 @@ This program uses a seven segment display, rotary encoder, and thermal printer t
 
 ## Setup
 
-
+GOOS=linux GOARCH=arm64 GOARM=6 CGO_ENABLED=1 CC=aarch64-linux-gnu-gcc
 
 ## FAQ
 

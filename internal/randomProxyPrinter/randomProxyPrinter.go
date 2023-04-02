@@ -35,28 +35,37 @@ func NewRandomProxyPrinter(db *sql.DB,
 }
 
 func (t *RandomProxyPrinter) Run(parentCtx context.Context) error {
+	t.logger.Info("proxy printer starting")
+	defer t.logger.Info("proxy printer ending")
+
 	if err := t.displayer.Display(0); err != nil {
 		return fmt.Errorf("initialize display to 0: %w", err)
 	}
 
-	ctx, cancel := context.WithCancel(parentCtx)
-
-	g := new(errgroup.Group)
+	g, ctx := errgroup.WithContext(parentCtx)
 
 	actions := make(chan Action)
 
 	g.Go(func() error {
 		defer close(actions)
 
-		return t.inputter.Run(ctx, actions)
+		t.logger.Info("inputter goroutine started")
+		defer t.logger.Info("inputter goroutine finished")
+
+		if err := t.inputter.Run(ctx, actions); err != nil {
+			return fmt.Errorf("run inputter: %w", err)
+		}
+
+		return nil
 	})
 
 	g.Go(func() error {
-		if err := t.displayer.Display(0); err != nil {
-			return fmt.Errorf("display value: %w", err)
-		}
+		t.logger.Info("actions handler goroutine started")
+		defer t.logger.Info("actions handler goroutine finished")
 
 		for action := range actions {
+			t.logger.WithField("action", action).Trace("read action")
+
 			if action == IncrementValue {
 				t.value++
 
@@ -68,12 +77,10 @@ func (t *RandomProxyPrinter) Run(parentCtx context.Context) error {
 					t.value = 0
 				}
 
-				t.logger.
-					WithField("value", t.value).
-					Trace("incremented value")
+				t.logger.WithField("value", t.value).Trace("incremented value")
 
 				if err := t.displayer.Display(t.value); err != nil {
-					return fmt.Errorf("display value: %w", err)
+					return fmt.Errorf("increment display value: %w", err)
 				}
 			} else if action == DecrementValue {
 				t.value--
@@ -86,12 +93,10 @@ func (t *RandomProxyPrinter) Run(parentCtx context.Context) error {
 					t.value = 16
 				}
 
-				t.logger.
-					WithField("value", t.value).
-					Trace("decremented value")
+				t.logger.WithField("value", t.value).Trace("decremented value")
 
 				if err := t.displayer.Display(t.value); err != nil {
-					return fmt.Errorf("displaying value: %w", err)
+					return fmt.Errorf("decrement display value: %w", err)
 				}
 			} else if action == PrintRandomProxy {
 				logEntry := t.logger.
@@ -104,22 +109,15 @@ func (t *RandomProxyPrinter) Run(parentCtx context.Context) error {
 				row := t.db.QueryRow("SELECT name, description, print_data FROM proxies WHERE value = ? ORDER BY RANDOM() LIMIT 1", t.value)
 
 				if err := row.Scan(&proxy.Name, &proxy.Description, &proxy.PrintData); err != nil {
-					logEntry.WithError(err).
-						Error("failed to fetch random proxy from database")
-
-					cancel()
+					logEntry.WithError(err).Error("failed to fetch random proxy from database")
 
 					return err
 				}
 
-				logEntry.WithField("proxy_name", proxy.Name).
-					Trace("random proxy fetched from database")
+				logEntry.WithField("proxy_name", proxy.Name).Trace("random proxy fetched from database")
 
 				if err := t.printer.Print(proxy); err != nil {
-					logEntry.WithError(err).
-						Error("failed to print random proxy")
-
-					cancel()
+					logEntry.WithError(err).Error("failed to print random proxy")
 
 					return err
 				}
@@ -130,10 +128,6 @@ func (t *RandomProxyPrinter) Run(parentCtx context.Context) error {
 	})
 
 	if err := g.Wait(); err != nil {
-		t.logger.
-			WithError(err).
-			Error("run proxy printer failed")
-
 		return fmt.Errorf("run proxy printer groups: %w", err)
 	}
 
