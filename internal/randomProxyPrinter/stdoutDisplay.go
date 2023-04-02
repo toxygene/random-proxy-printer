@@ -11,6 +11,5 @@ type StdoutDisplay struct {
 
 func (t *StdoutDisplay) Display(number int) error {
 	spew.Dump(number)
-
 	return nil
 }
