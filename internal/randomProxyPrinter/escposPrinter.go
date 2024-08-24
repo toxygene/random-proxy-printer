@@ -4,7 +4,6 @@ import (
 	"fmt"
 	_ "image/png"
 	"strings"
-	"sync"
 
 	"github.com/kenshaw/escpos"
 	"github.com/mitchellh/go-wordwrap"
