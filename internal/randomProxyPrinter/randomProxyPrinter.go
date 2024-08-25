@@ -2,23 +2,22 @@ package randomProxyPrinter
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 
+	"github.com/jmoiron/sqlx"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 )
 
 type RandomProxyPrinter struct {
-	db        *sql.DB
+	db        *sqlx.DB
 	displayer Displayer
 	inputter  Inputter
 	logger    *logrus.Entry
 	printer   Printer
-	value     int
 }
 
-func NewRandomProxyPrinter(db *sql.DB,
+func NewRandomProxyPrinter(db *sqlx.DB,
 	displayer Displayer,
 	inputter Inputter,
 	printer Printer,
@@ -32,6 +31,17 @@ func NewRandomProxyPrinter(db *sql.DB,
 	}
 
 	return randomProxyPrinter
+}
+
+func (t *RandomProxyPrinter) GetDistinctValues() ([]int, error) {
+	var distinctValues []int
+
+	if err := t.db.Select(&distinctValues, "select distinct value from proxies order by length(value), value"); err != nil {
+		t.logger.Error("get distinct values: %w", err)
+		return nil, fmt.Errorf("get distinct values: %w", err)
+	}
+
+	return distinctValues, nil
 }
 
 func (t *RandomProxyPrinter) Run(parentCtx context.Context) error {
@@ -63,50 +73,42 @@ func (t *RandomProxyPrinter) Run(parentCtx context.Context) error {
 		t.logger.Info("actions handler goroutine started")
 		defer t.logger.Info("actions handler goroutine finished")
 
+		offset := 0
+
+		distinctValues, err := t.GetDistinctValues()
+		if err != nil {
+			t.logger.Errorf("run proxy printer: %v", err)
+			return fmt.Errorf("run proxy printer: %w", err)
+		}
+
 		for action := range actions {
 			t.logger.WithField("action", action).Trace("read action")
 
 			if action == IncrementValue {
-				t.value++
+				offset = euclideanModulo(offset+1, len(distinctValues))
 
-				if t.value == 14 {
-					t.value++
-				}
+				t.logger.WithField("offset", offset).WithField("value", distinctValues[offset]).Trace("incremented offset")
 
-				if t.value > 16 {
-					t.value = 0
-				}
-
-				t.logger.WithField("value", t.value).Trace("incremented value")
-
-				if err := t.displayer.Display(t.value); err != nil {
+				if err := t.displayer.Display(distinctValues[offset]); err != nil {
 					return fmt.Errorf("increment display value: %w", err)
 				}
 			} else if action == DecrementValue {
-				t.value--
+				offset = euclideanModulo(offset-1, len(distinctValues))
 
-				if t.value == 14 {
-					t.value--
-				}
+				t.logger.WithField("offset", offset).WithField("value", distinctValues[offset]).Trace("decremented offset")
 
-				if t.value < 0 {
-					t.value = 16
-				}
-
-				t.logger.WithField("value", t.value).Trace("decremented value")
-
-				if err := t.displayer.Display(t.value); err != nil {
+				if err := t.displayer.Display(distinctValues[offset]); err != nil {
 					return fmt.Errorf("decrement display value: %w", err)
 				}
 			} else if action == PrintRandomProxy {
 				logEntry := t.logger.
-					WithField("value", t.value)
+					WithField("value", distinctValues[offset])
 
 				logEntry.Trace("fetching random proxy from database")
 
 				proxy := Proxy{}
 
-				row := t.db.QueryRow("SELECT name, description, print_data FROM proxies WHERE value = ? ORDER BY RANDOM() LIMIT 1", t.value)
+				row := t.db.QueryRow("SELECT name, description, print_data FROM proxies WHERE value = ? ORDER BY RANDOM() LIMIT 1", distinctValues[offset])
 
 				if err := row.Scan(&proxy.Name, &proxy.Description, &proxy.PrintData); err != nil {
 					logEntry.WithError(err).Error("failed to fetch random proxy from database")
@@ -132,4 +134,8 @@ func (t *RandomProxyPrinter) Run(parentCtx context.Context) error {
 	}
 
 	return nil
+}
+
+func euclideanModulo(a int, b int) int {
+	return (a%b + b) % b
 }

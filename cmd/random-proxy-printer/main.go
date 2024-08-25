@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"flag"
 	"fmt"
@@ -11,6 +10,7 @@ import (
 	"strconv"
 
 	"github.com/davecheney/i2c"
+	"github.com/jmoiron/sqlx"
 	"github.com/kenshaw/escpos"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/sirupsen/logrus"
@@ -60,7 +60,7 @@ func main() {
 		logger.SetLevel(logLevel)
 	}
 
-	db, err := sql.Open("sqlite3", *sqlitePathPtr)
+	db, err := sqlx.Open("sqlite3", *sqlitePathPtr)
 	if err != nil {
 		logger.WithField("sqlite", *sqlitePathPtr).WithError(err).Error("could not open sqlite3 database")
 		println(fmt.Errorf("open sqlite database: %w", err).Error())

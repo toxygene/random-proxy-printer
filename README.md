@@ -7,7 +7,26 @@ This program uses a seven segment display, rotary encoder, and thermal printer t
 
 ## Setup
 
-GOOS=linux GOARCH=arm64 GOARM=6 CGO_ENABLED=1 CC=aarch64-linux-gnu-gcc
+GOOS=linux GOARCH=arm64 GOARM=6 CGO_ENABLED=1 CC=aarch64-linux-gnu-gcc go build -o random-proxy-printer cmd/random-proxy-printer/main.go
+
+## Systemd script
+
+```
+[Unit]
+Description=Random Proxy Printer
+After=local-fs.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=1
+User=jhendric
+ExecStart=/home/jhendric/random-proxy-printer -button 23 -chipName gpiochip0 -ht16k33Bus 1 -ht16k33HexAddress 70 -logging TRACE -printer /dev/serial0 -proxies /home/jhendric/proxies.sqlite3 -rotaryEncoderClock 25 -rotaryEncoderData 24
+
+[Install]
+WantedBy=default.target
+```
 
 ## FAQ
 
