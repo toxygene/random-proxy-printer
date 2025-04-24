@@ -3,10 +3,8 @@ package randomProxyPrinter
 import (
 	"fmt"
 	_ "image/png"
-	"strings"
 
 	"github.com/kenshaw/escpos"
-	"github.com/mitchellh/go-wordwrap"
 	"github.com/sirupsen/logrus"
 )
 
@@ -27,17 +25,8 @@ func (t *ESCPOSPrinter) Print(proxy Proxy) error {
 		return fmt.Errorf("write print data: %w", err)
 	}
 
-	t.escpos.Feed(map[string]string{})
-
-	for _, line := range strings.Split(proxy.Description, "\n") {
-		for _, wrappedLine := range strings.Split(wordwrap.WrapString(line, 32), "\n") {
-			t.escpos.Text(map[string]string{}, wrappedLine)
-			t.escpos.Text(map[string]string{}, "\n")
-		}
-		t.escpos.Text(map[string]string{}, "\n")
-	}
-
-	t.escpos.Text(map[string]string{}, "\n\n")
+	t.escpos.Text(map[string]string{}, "\n\n\n")
+	t.escpos.WriteRaw([]byte{0x1B, 0x6D})
 
 	return nil
 }
