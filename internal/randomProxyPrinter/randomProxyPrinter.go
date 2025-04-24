@@ -108,7 +108,7 @@ func (t *RandomProxyPrinter) Run(parentCtx context.Context) error {
 
 				proxy := Proxy{}
 
-				row := t.db.QueryRow("SELECT name, print_data FROM proxies WHERE value = ? ORDER BY RANDOM() LIMIT 1", t.value)
+				row := t.db.QueryRow("SELECT name, print_data FROM proxies WHERE value = ? ORDER BY RANDOM() LIMIT 1", distinctValues[offset])
 
 				if err := row.Scan(&proxy.Name, &proxy.PrintData); err != nil {
 					logEntry.WithError(err).Error("failed to fetch random proxy from database")
