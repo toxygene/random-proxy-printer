@@ -25,6 +25,7 @@ func (t *ESCPOSPrinter) Print(proxy Proxy) error {
 		return fmt.Errorf("write print data: %w", err)
 	}
 
+	t.escpos.Text(map[string]string{}, proxy.Description)
 	t.escpos.Text(map[string]string{}, "\n\n\n")
 	t.escpos.WriteRaw([]byte{0x1B, 0x6D})
 

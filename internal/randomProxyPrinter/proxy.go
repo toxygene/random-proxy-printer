@@ -1,6 +1,7 @@
 package randomProxyPrinter
 
 type Proxy struct {
-	Name      string
-	PrintData []byte
+	Description string
+	Name        string
+	PrintData   []byte
 }
