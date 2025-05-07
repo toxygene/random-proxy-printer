@@ -3,6 +3,7 @@ package randomProxyPrinter
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/sirupsen/logrus"
 	buttonDevice "github.com/toxygene/gpiod-button/device"
@@ -12,16 +13,18 @@ import (
 
 func NewGpioInput(button *buttonDevice.Button, rotaryEncoder *rotaryEncoderDevice.RotaryEncoder, logger *logrus.Entry) *GpioInput {
 	return &GpioInput{
-		button:        button,
-		logger:        logger,
-		rotaryEncoder: rotaryEncoder,
+		button:         button,
+		buttonDebounce: 250,
+		logger:         logger,
+		rotaryEncoder:  rotaryEncoder,
 	}
 }
 
 type GpioInput struct {
-	button        *buttonDevice.Button
-	logger        *logrus.Entry
-	rotaryEncoder *rotaryEncoderDevice.RotaryEncoder
+	button         *buttonDevice.Button
+	buttonDebounce int
+	logger         *logrus.Entry
+	rotaryEncoder  *rotaryEncoderDevice.RotaryEncoder
 }
 
 func (t *GpioInput) Run(parentCtx context.Context, actions chan<- Action) error {
@@ -86,6 +89,8 @@ func (t *GpioInput) Run(parentCtx context.Context, actions chan<- Action) error 
 
 			if buttonAction == buttonDevice.Press {
 				actions <- PrintRandomProxy
+
+				<-time.NewTimer(time.Duration(t.buttonDebounce) * time.Millisecond).C
 			}
 		}
 
