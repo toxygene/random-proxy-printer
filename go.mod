@@ -14,6 +14,8 @@ require (
 	golang.org/x/sync v0.1.0
 )
 
+require github.com/mitchellh/go-wordwrap v1.0.1 // indirect
+
 require (
 	github.com/jmoiron/sqlx v1.4.0
 	github.com/warthog618/gpiod v0.8.1

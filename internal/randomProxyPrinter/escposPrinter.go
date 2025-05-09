@@ -3,8 +3,10 @@ package randomProxyPrinter
 import (
 	"fmt"
 	_ "image/png"
+	"strings"
 
 	"github.com/kenshaw/escpos"
+	"github.com/mitchellh/go-wordwrap"
 	"github.com/sirupsen/logrus"
 )
 
@@ -25,9 +27,29 @@ func (t *ESCPOSPrinter) Print(proxy Proxy) error {
 		return fmt.Errorf("write print data: %w", err)
 	}
 
-	t.escpos.Text(map[string]string{}, proxy.Description)
-	t.escpos.Text(map[string]string{}, "\n\n\n")
-	t.escpos.WriteRaw([]byte{0x1B, 0x6D})
+	t.escpos.Feed(map[string]string{})
+
+	t.escpos.WriteRaw([]byte{0x1B, 0x21, 0x00}) // set font 1
+
+	for _, line := range strings.Split(proxy.Description, "\n") {
+		for _, wrappedLine := range strings.Split(wordwrap.WrapString(line, 32), "\n") {
+			t.escpos.Text(map[string]string{}, wrappedLine)
+			t.escpos.Text(map[string]string{}, "\n")
+		}
+		t.escpos.Text(map[string]string{}, "\n")
+	}
+
+	t.escpos.WriteRaw([]byte{0x1B, 0x21, 0x01}) // set font 2
+
+	for _, line := range strings.Split(proxy.Footer, "\n") {
+		for _, wrappedLine := range strings.Split(wordwrap.WrapString(line, 41), "\n") {
+			t.escpos.Text(map[string]string{}, wrappedLine)
+			t.escpos.Text(map[string]string{}, "\n")
+		}
+	}
+	t.escpos.Text(map[string]string{}, "\n\n\n\n")
+
+	t.escpos.WriteRaw([]byte{0x1B, 0x6D}) // partial cut
 
 	return nil
 }

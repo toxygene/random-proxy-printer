@@ -22,7 +22,7 @@ Type=simple
 Restart=always
 RestartSec=1
 User=jhendric
-ExecStart=/home/jhendric/random-proxy-printer -button 23 -chipName gpiochip0 -ht16k33Bus 1 -ht16k33HexAddress 70 -logging TRACE -printer /dev/serial0 -proxies /home/jhendric/proxies.sqlite3 -rotaryEncoderClock 25 -rotaryEncoderData 24
+ExecStart=/home/justinh/random-proxy-printer -button 23 -chipName gpiochip0 -ht16k33Bus 1 -ht16k33HexAddress 70 -logging TRACE -printer /dev/usb/lp0 -proxies /home/justinh/proxies.sqlite3 -rotaryEncoderClock 24 -rotaryEncoderData 25
 
 [Install]
 WantedBy=default.target
