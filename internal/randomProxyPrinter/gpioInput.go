@@ -90,7 +90,16 @@ func (t *GpioInput) Run(parentCtx context.Context, actions chan<- Action) error 
 			if buttonAction == buttonDevice.Press {
 				actions <- PrintRandomProxy
 
-				<-time.NewTimer(time.Duration(t.buttonDebounce) * time.Millisecond).C
+				cont := true
+				debounce := time.NewTimer(time.Duration(t.buttonDebounce) * time.Millisecond)
+
+				for cont {
+					select {
+					case <-buttonActions:
+					case <-debounce.C:
+						cont = false
+					}
+				}
 			}
 		}
 
