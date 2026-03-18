@@ -1,11 +1,25 @@
 # Random Proxy Printer
 
+This device prints a random proxy of a game piece that matches a predefined characteristic of the game piece.
+
+The purpose of the device is to allow playing custom game formats in-person, when the game format would be impractical or impossible to do otherwise.
+
 TODO photo of box here
-TODO photo of box insides here
 
-This program uses a seven segment display, rotary encoder, and thermal printer to allow users to select a value and print a random proxy based on that value.
+## Parts
 
-## Setup
+The device consists of several parts.
+
+ * A Raspberry Pi 4b running Raspbian
+ * A 7 segement display
+ * A rotary encoder
+ * A thermal printer
+
+TODO get exact part names
+
+The 7 segement display is connected to the Raspberry Pi's I2C bus, the rotary encoder is connected to the GPIO pins, and the thermal printer is connected via USB. The game piece database and the executable are copied to the SD card and a systemd service is used to pass all required information to the code.
+
+## Compiling
 
 GOOS=linux GOARCH=arm64 GOARM=6 CGO_ENABLED=1 CC=aarch64-linux-gnu-gcc go build -o random-proxy-printer cmd/random-proxy-printer/main.go
 
