@@ -4,7 +4,7 @@ This device prints a random proxy of a game piece that matches a predefined char
 
 The purpose of the device is to allow playing custom game formats in-person, when the game format would be impractical or impossible to do otherwise.
 
-TODO photo of box here
+![Photo of the Random Proxy Printer.](photo.jpg)
 
 ## Parts
 
